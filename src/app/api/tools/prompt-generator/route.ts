@@ -1,9 +1,7 @@
-import openai from "@/lib/openai";
-import {
-  PromptGeneratorResponse,
-  PromptGeneratorResponseSchema,
-} from "@/schemas/prompt-schema";
+import { PromptGeneratorResponseSchema } from "@/schemas/prompt-schema";
+import { generateObject } from "ai";
 import { NextResponse } from "next/server";
+import { openai } from "@ai-sdk/openai";
 
 interface PromptRequest {
   topic: string;
@@ -27,7 +25,6 @@ export async function POST(req: Request) {
     const systemMessage = `You are an educational prompt generator. Your responses must be valid JSON objects that strictly follow the provided schema structure. Generate exactly three different versions of educational prompts based on the given topic and parameters.`;
 
     const userMessage = `Generate three educational prompts following this exact schema:
-    ${JSON.stringify(PromptGeneratorResponseSchema.shape, null, 2)}
 
     Each prompt must include:
     1. Clear prompt text
@@ -48,37 +45,13 @@ export async function POST(req: Request) {
 
     Respond with ONLY a valid JSON object matching the provided schema.`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemMessage },
-        { role: "user", content: userMessage },
-      ],
-      temperature: 0.7,
-      response_format: { type: "json_object" },
+    const { object } = await generateObject({
+      model: openai("gpt-4o-mini"),
+      schema: PromptGeneratorResponseSchema,
+      prompt: systemMessage + userMessage,
     });
 
-    const responseContent = completion.choices[0].message.content;
-    if (!responseContent) {
-      throw new Error("Empty response from OpenAI");
-    }
-
-    // Parse and validate the response
-    const parsedResponse = JSON.parse(responseContent);
-
-    const responseData: PromptGeneratorResponse = {
-      ...parsedResponse,
-      metadata: {
-        generatedAt: new Date().toISOString(),
-        version: "1.0.0",
-        processingTimeMs: Date.now() - startTime,
-      },
-    };
-
-    // Validate against schema
-    const validatedResponse = PromptGeneratorResponseSchema.parse(responseData);
-
-    return NextResponse.json(validatedResponse, {
+    return NextResponse.json(object, {
       headers: {
         "Content-Type": "application/json",
         "Cache-Control": "no-store, no-cache, must-revalidate",

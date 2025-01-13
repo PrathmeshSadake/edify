@@ -13,44 +13,21 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-
-interface RefinedPrompt {
-  promptText: string;
-  explanation: {
-    explanation: string;
-    focusAreas: string[];
-    complexityLevel: {
-      bloomsLevel: string;
-      cognitiveLoad: number;
-    };
-  };
-  ratings?: {
-    averageRating?: number;
-    totalRatings?: number;
-  };
-}
-
-interface PromptResponse {
-  originalPrompt: string;
-  refinedPrompts: RefinedPrompt[];
-  metadata: {
-    generatedAt: string;
-    version: string;
-    processingTimeMs: number;
-  };
-}
+import {
+  PromptGeneratorResponse,
+  PromptGeneratorResponseSchema,
+} from "@/schemas/prompt-schema";
 
 export default function PromptPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [promptContent, setPromptContent] = useState<PromptResponse | null>(
-    null
-  );
-  const [error, setError] = useState("");
+  const [promptContent, setPromptContent] =
+    useState<PromptGeneratorResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
-    setError("");
+    setError(null);
 
     const formData = new FormData(e.currentTarget);
     const data = {
@@ -68,9 +45,19 @@ export default function PromptPage() {
       });
 
       const result = await response.json();
-      if (!response.ok)
+
+      if (!response.ok) {
         throw new Error(result.error || "Failed to generate prompt");
-      setPromptContent(result);
+      }
+
+      // Validate response against schema
+      const validatedResult = PromptGeneratorResponseSchema.safeParse(result);
+
+      if (!validatedResult.success) {
+        throw new Error("Invalid response format from server");
+      }
+
+      setPromptContent(validatedResult.data);
     } catch (err) {
       setError(
         err instanceof Error
@@ -94,17 +81,74 @@ export default function PromptPage() {
     </span>
   );
 
+  const renderPromptCard = (
+    prompt: PromptGeneratorResponse["refinedPrompts"][0],
+    index: number
+  ) => (
+    <div
+      key={index}
+      className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'
+    >
+      <div className='flex justify-between items-center mb-4'>
+        <h3 className='text-lg font-semibold text-gray-900'>
+          Prompt Version {index + 1}
+        </h3>
+        <div className='flex items-center'>
+          {renderComplexityBadge(
+            prompt.explanation.complexityLevel.cognitiveLoad
+          )}
+          {renderBloomsBadge(prompt.explanation.complexityLevel.bloomsLevel)}
+        </div>
+      </div>
+
+      <div className='prose prose-sm max-w-none text-gray-700'>
+        <ReactMarkdown>{prompt.promptText}</ReactMarkdown>
+      </div>
+
+      <div className='mt-4'>
+        <h4 className='font-medium text-gray-900 mb-2'>Explanation</h4>
+        <p className='text-gray-700'>{prompt.explanation.explanation}</p>
+      </div>
+
+      <div className='mt-4'>
+        <h4 className='font-medium text-gray-900 mb-2'>Focus Areas</h4>
+        <ul className='list-disc pl-5 space-y-1'>
+          {prompt.explanation.focusAreas.map((area, i) => (
+            <li key={i} className='text-gray-700'>
+              {area}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {prompt.ratings && (
+        <div className='mt-4 flex items-center text-sm text-gray-500'>
+          {prompt.ratings.averageRating !== undefined && (
+            <>
+              <span>
+                Average Rating: {prompt.ratings.averageRating.toFixed(1)}
+              </span>
+              <span className='mx-2'>•</span>
+            </>
+          )}
+          {prompt.ratings.totalRatings !== undefined && (
+            <span>Total Ratings: {prompt.ratings.totalRatings}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className='min-h-screen bg-gradient-to-b from-gray-50 to-white'>
       <div className='container mx-auto px-4 py-12'>
-        {/* Header Section */}
         <div className='text-center mb-12'>
           <h1 className='text-4xl font-bold text-gray-900 mb-4'>
             Educational Prompt Generator
           </h1>
           <p className='text-lg text-gray-600 max-w-2xl mx-auto'>
             Generate differentiated educational prompts with various complexity
-            levels and pedagogical approaches.
+            levels
           </p>
         </div>
 
@@ -217,70 +261,16 @@ export default function PromptPage() {
                   </p>
                 </div>
 
-                {promptContent.refinedPrompts.map((prompt, index) => (
-                  <div
-                    key={index}
-                    className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'
-                  >
-                    <div className='flex justify-between items-center mb-4'>
-                      <h3 className='text-lg font-semibold text-gray-900'>
-                        Prompt Version {index + 1}
-                      </h3>
-                      <div className='flex items-center'>
-                        {renderComplexityBadge(
-                          prompt.explanation.complexityLevel.cognitiveLoad
-                        )}
-                        {renderBloomsBadge(
-                          prompt.explanation.complexityLevel.bloomsLevel
-                        )}
-                      </div>
-                    </div>
+                {promptContent.refinedPrompts.map((prompt, index) =>
+                  renderPromptCard(prompt, index)
+                )}
 
-                    <div className='prose prose-sm max-w-none text-gray-700'>
-                      <ReactMarkdown>{prompt.promptText}</ReactMarkdown>
-                    </div>
-
-                    <div className='mt-4'>
-                      <h4 className='font-medium text-gray-900 mb-2'>
-                        Explanation
-                      </h4>
-                      <p className='text-gray-700'>
-                        {prompt.explanation.explanation}
-                      </p>
-                    </div>
-
-                    <div className='mt-4'>
-                      <h4 className='font-medium text-gray-900 mb-2'>
-                        Focus Areas
-                      </h4>
-                      <ul className='list-disc pl-5 space-y-1'>
-                        {prompt.explanation.focusAreas.map((area, i) => (
-                          <li key={i} className='text-gray-700'>
-                            {area}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {prompt.ratings && (
-                      <div className='mt-4 flex items-center text-sm text-gray-500'>
-                        <span>
-                          Average Rating:{" "}
-                          {prompt.ratings.averageRating?.toFixed(1) || "N/A"}
-                        </span>
-                        <span className='mx-2'>•</span>
-                        <span>
-                          Total Ratings: {prompt.ratings.totalRatings || 0}
-                        </span>
-                      </div>
-                    )}
+                {promptContent.metadata && (
+                  <div className='text-sm text-gray-500 mt-4'>
+                    Generated in {promptContent.metadata.processingTimeMs}ms •
+                    Version {promptContent.metadata.version}
                   </div>
-                ))}
-
-                <div className='text-sm text-gray-500 mt-4'>
-                  Generated in {promptContent.metadata.processingTimeMs}ms •
-                  Version {promptContent.metadata.version}
-                </div>
+                )}
               </div>
             ) : (
               <div className='text-center py-12 text-gray-500'>

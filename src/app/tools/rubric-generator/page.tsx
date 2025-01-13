@@ -28,7 +28,7 @@ import {
   RubricResponse,
 } from "@/schemas/rubric-schema";
 
-export default function RubricGenerator() {
+const RubricGenerator = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [rubricResponse, setRubricResponse] = useState<RubricResponse | null>(
     null
@@ -183,12 +183,16 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                       <SelectValue placeholder='Select assignment type' />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.values(AssignmentTypeEnum).map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type.replace("_", " ").charAt(0).toUpperCase() +
-                            type.slice(1)}
-                        </SelectItem>
-                      ))}
+                      {Object.values(AssignmentTypeEnum.Values).map(
+                        (type, index) => (
+                          <SelectItem
+                            key={`assignment-type-${index}`}
+                            value={type}
+                          >
+                            {type}
+                          </SelectItem>
+                        )
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -213,11 +217,13 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                       <SelectValue placeholder='Select key stage' />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.values(KeyStageEnum).map((stage) => (
-                        <SelectItem key={stage} value={stage}>
-                          {stage.toUpperCase()}
-                        </SelectItem>
-                      ))}
+                      {Object.values(KeyStageEnum.Values).map(
+                        (stage, index) => (
+                          <SelectItem key={`key-stage-${index}`} value={stage}>
+                            {stage}
+                          </SelectItem>
+                        )
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -247,11 +253,16 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                       <SelectValue placeholder='Select assessment type' />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.values(AssessmentTypeEnum).map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type.charAt(0).toUpperCase() + type.slice(1)}
-                        </SelectItem>
-                      ))}
+                      {Object.values(AssessmentTypeEnum.Values).map(
+                        (type, index) => (
+                          <SelectItem
+                            key={`assignment-type2-${index}`}
+                            value={type}
+                          >
+                            {type}
+                          </SelectItem>
+                        )
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -272,7 +283,7 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                   </Button>
                 </div>
                 {criteria.map((criterion, index) => (
-                  <div key={index} className='flex gap-2'>
+                  <div key={`criterion-${index}`} className='flex gap-2'>
                     <Input
                       value={criterion}
                       onChange={(e) => updateCriterion(index, e.target.value)}
@@ -404,7 +415,6 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                     <p className='text-gray-600 mb-4'>
                       {criterion.description}
                     </p>
-
                     <div className='space-y-4'>
                       {Object.entries(criterion.feedbackByLevel).map(
                         ([level, feedback]) => (
@@ -426,18 +436,17 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                                 </p>
                                 <ul className='list-disc list-inside text-gray-600 pl-4'>
                                   {feedback.suggestions.map((suggestion, i) => (
-                                    <li key={i}>{suggestion}</li>
+                                    <li>{suggestion}</li>
                                   ))}
                                 </ul>
                               </div>
-
                               <div>
                                 <p className='text-sm font-medium text-gray-500'>
                                   Actionable Steps:
                                 </p>
                                 <ul className='list-disc list-inside text-gray-600 pl-4'>
                                   {feedback.actionableSteps.map((step, i) => (
-                                    <li key={i}>{step}</li>
+                                    <li>{step}</li>
                                   ))}
                                 </ul>
                               </div>
@@ -463,7 +472,7 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                       <ul className='list-disc list-inside text-gray-600 pl-4'>
                         {rubricResponse.rubric.instructions.teacher.map(
                           (instruction, i) => (
-                            <li key={i}>{instruction}</li>
+                            <li>{instruction}</li>
                           )
                         )}
                       </ul>
@@ -477,7 +486,7 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                         <ul className='list-disc list-inside text-gray-600 pl-4'>
                           {rubricResponse.rubric.instructions.peer.map(
                             (instruction, i) => (
-                              <li key={i}>{instruction}</li>
+                              <li>{instruction}</li>
                             )
                           )}
                         </ul>
@@ -492,7 +501,7 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                         <ul className='list-disc list-inside text-gray-600 pl-4'>
                           {rubricResponse.rubric.instructions.self.map(
                             (instruction, i) => (
-                              <li key={i}>{instruction}</li>
+                              <li>{instruction}</li>
                             )
                           )}
                         </ul>
@@ -509,7 +518,7 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                   <ul className='list-disc list-inside text-gray-600 pl-4'>
                     {rubricResponse.rubric.reflectionPrompts.map(
                       (prompt, i) => (
-                        <li key={i}>{prompt}</li>
+                        <li>{prompt}</li>
                       )
                     )}
                   </ul>
@@ -531,4 +540,6 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
       </div>
     </div>
   );
-}
+};
+
+export default RubricGenerator;

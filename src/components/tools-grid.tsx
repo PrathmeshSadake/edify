@@ -25,21 +25,22 @@ const tools = [
     icon: MessageSquare,
     href: "/tools/prompt-generator",
   },
+
+  // {
+  //   title: "Rubrik Generator",
+  //   description: "Create detailed assessment rubrics for any subject or task",
+  //   icon: ClipboardCheck,
+  //   href: "/tools/rubric-generator",
+  // },
+];
+
+const disabledTools = [
   {
     title: "Peel Generator",
     description:
       "Designed to enhance the clarity and coherence of your writing.",
     icon: Brain,
     href: "/tools/peel-generator",
-  },
-];
-
-const disabledTools = [
-  {
-    title: "Rubrik Generator",
-    description: "Create detailed assessment rubrics for any subject or task",
-    icon: ClipboardCheck,
-    href: "/tools/rubric-generator",
   },
   {
     title: "Quiz Generator",

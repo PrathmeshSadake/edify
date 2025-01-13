@@ -51,11 +51,12 @@ export async function POST(req: Request) {
       schema: LessonPlanSchema,
       prompt: systemMessage + userMessage,
     });
-    console.log(object);
+
     // Parse and validate the response
-    let lessonPlanData: any;
+    let lessonPlanData = object;
     try {
-      lessonPlanData = object;
+      // const validatedResponse = LessonPlanSchema.parse(lessonPlanData);
+      // lessonPlanData = validatedResponse;
     } catch (parseError) {
       console.error("Failed to parse OpenAI response:", parseError);
       return NextResponse.json(
