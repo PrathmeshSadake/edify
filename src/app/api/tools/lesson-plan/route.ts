@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     Respond with ONLY a valid JSON object matching the provided schema.`;
 
     const { object } = await generateObject({
-      model: openai("gpt-4-turbo"),
+      model: openai("gpt-4o-mini"),
       schema: LessonPlanSchema,
       prompt: systemMessage + userMessage,
     });
@@ -55,9 +55,7 @@ export async function POST(req: Request) {
     // Parse and validate the response
     let lessonPlanData: any;
     try {
-      const parsed = JSON.stringify(object, null, 2);
-      console.log(parsed);
-      lessonPlanData = parsed;
+      lessonPlanData = object;
     } catch (parseError) {
       console.error("Failed to parse OpenAI response:", parseError);
       return NextResponse.json(
