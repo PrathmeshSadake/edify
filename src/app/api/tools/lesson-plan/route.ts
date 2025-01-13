@@ -3,7 +3,8 @@ import {
   LessonPlanSchema,
   type LessonPlan,
 } from "@/schemas/lesson-plan-schema";
-import openai from "@/lib/openai";
+import { openai } from "@ai-sdk/openai";
+import { generateObject } from "ai";
 
 interface LessonPlanRequest {
   prompt: string;
@@ -27,7 +28,6 @@ export async function POST(req: Request) {
     const systemMessage = `You are a professional curriculum developer who creates detailed lesson plans. Your responses must be valid JSON objects that strictly follow the provided schema structure. Do not include any additional text or explanations outside the JSON object.`;
 
     const userMessage = `Generate a detailed lesson plan following this exact schema structure:
-    ${JSON.stringify(LessonPlanSchema.shape, null, 2)}
 
     Topic: ${body.prompt}
     Year Group: ${body.grade || "To be determined"}
@@ -46,27 +46,18 @@ export async function POST(req: Request) {
 
     Respond with ONLY a valid JSON object matching the provided schema.`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Using GPT-4 for better structured outputs
-      messages: [
-        { role: "system", content: systemMessage },
-        { role: "user", content: userMessage },
-      ],
-      temperature: 0.7,
-      response_format: { type: "json_object" }, // Ensure JSON response
+    const { object } = await generateObject({
+      model: openai("gpt-4-turbo"),
+      schema: LessonPlanSchema,
+      prompt: systemMessage + userMessage,
     });
 
     // Parse and validate the response
-    let lessonPlanData: LessonPlan;
+    let lessonPlanData: any;
     try {
-      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
-      lessonPlanData = LessonPlanSchema.parse({
-        ...parsed,
-        metadata: {
-          ...parsed.metadata,
-          createdAt: new Date().toISOString(),
-        },
-      });
+      const parsed = JSON.stringify(object, null, 2);
+      console.log(parsed);
+      lessonPlanData = parsed;
     } catch (parseError) {
       console.error("Failed to parse OpenAI response:", parseError);
       return NextResponse.json(
