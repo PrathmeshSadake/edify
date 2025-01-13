@@ -1,116 +1,123 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import OpenAI from "openai";
 import { NextResponse } from "next/server";
-
-interface RubricRequest {
-  task: string;
-  subject?: string;
-  grade?: string;
-  criteriaCount?: number;
-  performanceLevels?: string[];
-}
-
-interface RubricResponse {
-  content: {
-    criteria: {
-      name: string;
-      description: string;
-      levels: {
-        level: string;
-        description: string;
-        points: number;
-      }[];
-    }[];
-  };
-  metadata: {
-    task: string;
-    subject?: string;
-    grade?: string;
-    timestamp: string;
-  };
-}
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+import { v4 as uuidv4 } from "uuid";
+import {
+  RubricRequest,
+  RubricResponse,
+  RubricRequestSchema,
+  RubricResponseSchema,
+  AssessmentTypeEnum,
+  PerformanceLevelEnum,
+} from "@/schemas/rubric-schema";
+import openai from "@/lib/openai";
 
 export async function POST(req: Request) {
   try {
-    const body: RubricRequest = await req.json();
+    // Validate request body against schema
+    const body = await req.json();
+    const validatedRequest = RubricRequestSchema.parse(body);
 
-    if (!body.task) {
-      return NextResponse.json(
-        { error: "Missing required field: task" },
-        { status: 400 }
-      );
+    const systemMessage = `You are an educational assessment expert who creates detailed rubrics. Your responses must be valid JSON objects that strictly follow the provided schema structure. Generate comprehensive assessment criteria with specific feedback for each performance level.`;
+
+    const userMessage = `Create an assessment rubric following this exact schema:
+    ${JSON.stringify(RubricResponseSchema.shape, null, 2)}
+
+    Assignment Details:
+    - Type: ${validatedRequest.assignmentType}
+    ${
+      validatedRequest.customAssignmentType
+        ? `- Custom Type: ${validatedRequest.customAssignmentType}`
+        : ""
+    }
+    - Key Stage: ${validatedRequest.keyStage}
+    - Year Group: ${validatedRequest.yearGroup}
+    - Assessment Type: ${validatedRequest.assessmentType}
+    
+    Required Criteria: ${validatedRequest.criteria.join(", ")}
+    ${
+      validatedRequest.additionalInstructions
+        ? `Additional Instructions: ${validatedRequest.additionalInstructions}`
+        : ""
     }
 
-    const systemPrompt = `Generate a detailed assessment rubric with the following structure:
-    - Each criterion should have a clear name and description
-    - For each criterion, provide performance level descriptions and point values
-    - Performance levels should be: Excellent (4), Proficient (3), Developing (2), Beginning (1)
-
-    Consider these details:
-    ${body.subject ? `Subject: ${body.subject}` : ""}
-    ${body.grade ? `Grade Level: ${body.grade}` : ""}
-    Number of criteria: ${body.criteriaCount || 4}
+    For each criterion:
+    1. Provide clear name and description
+    2. Include detailed feedback for each performance level (advanced, proficient, developing, needs_improvement)
+    3. Include specific suggestions and actionable steps for improvement
     
-    Task to assess: ${body.task}
+    Also include:
+    1. Appropriate instructions based on assessment type (teacher/peer/self)
+    2. Relevant reflection prompts
     
-    Format the response as structured data with clear sections for each criterion and its performance levels.`;
+    Respond with ONLY a valid JSON object matching the provided schema.`;
 
-    const result = await model.generateContent(systemPrompt);
-    const response = await result.response;
-    const text = response.text();
-
-    // Process and structure the response
-    const sections = text
-      .split(/Criterion \d+:|Criteria \d+:/i)
-      .filter((section) => section.trim().length > 0);
-
-    const criteria = sections.map((section) => {
-      const lines = section
-        .trim()
-        .split("\n")
-        .filter((line) => line.trim());
-      const name = lines[0]?.trim() ?? "";
-      const description = lines[1]?.trim() ?? "";
-
-      const levels = [
-        { level: "Excellent", points: 4 },
-        { level: "Proficient", points: 3 },
-        { level: "Developing", points: 2 },
-        { level: "Beginning", points: 1 },
-      ].map((level) => ({
-        ...level,
-        description:
-          lines
-            .find((l) => l.includes(level.level))
-            ?.replace(level.level, "")
-            .trim() ?? "",
-      }));
-
-      return { name, description, levels };
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.7,
+      response_format: { type: "json_object" },
     });
 
-    const responseData: RubricResponse = {
-      content: { criteria },
+    const responseContent = completion.choices[0].message.content;
+    if (!responseContent) {
+      throw new Error("Empty response from OpenAI");
+    }
+
+    // Parse and structure the response
+    const parsedResponse = JSON.parse(responseContent);
+
+    const rubricResponse: RubricResponse = {
+      id: uuidv4(),
+      createdAt: new Date().toISOString(),
       metadata: {
-        task: body.task,
-        subject: body.subject,
-        grade: body.grade,
-        timestamp: new Date().toISOString(),
+        assignmentType: validatedRequest.assignmentType,
+        customAssignmentType: validatedRequest.customAssignmentType,
+        keyStage: validatedRequest.keyStage,
+        yearGroup: validatedRequest.yearGroup,
+        assessmentType: validatedRequest.assessmentType,
       },
+      rubric: {
+        ...parsedResponse.rubric,
+        instructions: {
+          teacher: parsedResponse.rubric.instructions.teacher,
+          ...(validatedRequest.assessmentType === "peer" && {
+            peer: parsedResponse.rubric.instructions.peer,
+          }),
+          ...(validatedRequest.assessmentType === "self" && {
+            self: parsedResponse.rubric.instructions.self,
+          }),
+        },
+      },
+      version: 1,
     };
 
-    return NextResponse.json(responseData);
+    // Validate the response against our schema
+    const validatedResponse = RubricResponseSchema.parse(rubricResponse);
+
+    return NextResponse.json(validatedResponse, {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    });
   } catch (error) {
     console.error("Error generating rubric:", error);
+
     return NextResponse.json(
       {
         error: "Failed to generate rubric",
-        message: error instanceof Error ? error.message : "Unknown error",
+        details: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
   }
 }

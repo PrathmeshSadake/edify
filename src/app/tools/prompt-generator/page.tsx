@@ -14,14 +14,37 @@ import {
 import { Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
+interface RefinedPrompt {
+  promptText: string;
+  explanation: {
+    explanation: string;
+    focusAreas: string[];
+    complexityLevel: {
+      bloomsLevel: string;
+      cognitiveLoad: number;
+    };
+  };
+  ratings?: {
+    averageRating?: number;
+    totalRatings?: number;
+  };
+}
+
+interface PromptResponse {
+  originalPrompt: string;
+  refinedPrompts: RefinedPrompt[];
+  metadata: {
+    generatedAt: string;
+    version: string;
+    processingTimeMs: number;
+  };
+}
+
 export default function PromptPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [promptContent, setPromptContent] = useState<{
-    instructions?: string;
-    successCriteria?: string;
-    keyVocabulary?: string[];
-    scaffolding?: string[];
-  }>({});
+  const [promptContent, setPromptContent] = useState<PromptResponse | null>(
+    null
+  );
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -45,8 +68,9 @@ export default function PromptPage() {
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error);
-      setPromptContent(result.content);
+      if (!response.ok)
+        throw new Error(result.error || "Failed to generate prompt");
+      setPromptContent(result);
     } catch (err) {
       setError(
         err instanceof Error
@@ -58,6 +82,18 @@ export default function PromptPage() {
     }
   };
 
+  const renderComplexityBadge = (level: number) => (
+    <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800'>
+      Cognitive Load: {level}/5
+    </span>
+  );
+
+  const renderBloomsBadge = (level: string) => (
+    <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 ml-2'>
+      {level}
+    </span>
+  );
+
   return (
     <div className='min-h-screen bg-gradient-to-b from-gray-50 to-white'>
       <div className='container mx-auto px-4 py-12'>
@@ -67,9 +103,8 @@ export default function PromptPage() {
             Educational Prompt Generator
           </h1>
           <p className='text-lg text-gray-600 max-w-2xl mx-auto'>
-            Create comprehensive educational prompts tailored to your needs.
-            Perfect for teachers and educators looking to generate engaging
-            learning materials.
+            Generate differentiated educational prompts with various complexity
+            levels and pedagogical approaches.
           </p>
         </div>
 
@@ -141,7 +176,7 @@ export default function PromptPage() {
                     Generating...
                   </>
                 ) : (
-                  "Generate Educational Prompt"
+                  "Generate Educational Prompts"
                 )}
               </Button>
             </form>
@@ -150,7 +185,7 @@ export default function PromptPage() {
           {/* Result Card */}
           <Card className='p-8 shadow-lg'>
             <h2 className='text-2xl font-bold text-gray-900 mb-6'>
-              Generated Educational Prompt
+              Generated Educational Prompts
             </h2>
 
             {error && (
@@ -171,58 +206,86 @@ export default function PromptPage() {
                   <div className='h-4 bg-gray-200 rounded w-full'></div>
                 </div>
               </div>
-            ) : promptContent.instructions ? (
+            ) : promptContent ? (
               <div className='space-y-8'>
                 <div className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'>
                   <h3 className='text-lg font-semibold text-gray-900 mb-3'>
-                    Instructions
+                    Original Topic
                   </h3>
-                  <div className='prose prose-sm max-w-none text-gray-700'>
-                    <ReactMarkdown>{promptContent.instructions}</ReactMarkdown>
+                  <p className='text-gray-700'>
+                    {promptContent.originalPrompt}
+                  </p>
+                </div>
+
+                {promptContent.refinedPrompts.map((prompt, index) => (
+                  <div
+                    key={index}
+                    className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'
+                  >
+                    <div className='flex justify-between items-center mb-4'>
+                      <h3 className='text-lg font-semibold text-gray-900'>
+                        Prompt Version {index + 1}
+                      </h3>
+                      <div className='flex items-center'>
+                        {renderComplexityBadge(
+                          prompt.explanation.complexityLevel.cognitiveLoad
+                        )}
+                        {renderBloomsBadge(
+                          prompt.explanation.complexityLevel.bloomsLevel
+                        )}
+                      </div>
+                    </div>
+
+                    <div className='prose prose-sm max-w-none text-gray-700'>
+                      <ReactMarkdown>{prompt.promptText}</ReactMarkdown>
+                    </div>
+
+                    <div className='mt-4'>
+                      <h4 className='font-medium text-gray-900 mb-2'>
+                        Explanation
+                      </h4>
+                      <p className='text-gray-700'>
+                        {prompt.explanation.explanation}
+                      </p>
+                    </div>
+
+                    <div className='mt-4'>
+                      <h4 className='font-medium text-gray-900 mb-2'>
+                        Focus Areas
+                      </h4>
+                      <ul className='list-disc pl-5 space-y-1'>
+                        {prompt.explanation.focusAreas.map((area, i) => (
+                          <li key={i} className='text-gray-700'>
+                            {area}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {prompt.ratings && (
+                      <div className='mt-4 flex items-center text-sm text-gray-500'>
+                        <span>
+                          Average Rating:{" "}
+                          {prompt.ratings.averageRating?.toFixed(1) || "N/A"}
+                        </span>
+                        <span className='mx-2'>•</span>
+                        <span>
+                          Total Ratings: {prompt.ratings.totalRatings || 0}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                </div>
+                ))}
 
-                <div className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'>
-                  <h3 className='text-lg font-semibold text-gray-900 mb-3'>
-                    Success Criteria
-                  </h3>
-                  <div className='prose prose-sm max-w-none text-gray-700'>
-                    <ReactMarkdown>
-                      {promptContent.successCriteria || ""}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-
-                <div className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'>
-                  <h3 className='text-lg font-semibold text-gray-900 mb-3'>
-                    Key Vocabulary
-                  </h3>
-                  <ul className='list-disc pl-5 space-y-2'>
-                    {promptContent.keyVocabulary?.map((word, index) => (
-                      <li key={index} className='text-gray-700'>
-                        <ReactMarkdown>{word}</ReactMarkdown>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'>
-                  <h3 className='text-lg font-semibold text-gray-900 mb-3'>
-                    Scaffolding Suggestions
-                  </h3>
-                  <ul className='list-disc pl-5 space-y-2'>
-                    {promptContent.scaffolding?.map((step, index) => (
-                      <li key={index} className='text-gray-700'>
-                        <ReactMarkdown>{step}</ReactMarkdown>
-                      </li>
-                    ))}
-                  </ul>
+                <div className='text-sm text-gray-500 mt-4'>
+                  Generated in {promptContent.metadata.processingTimeMs}ms •
+                  Version {promptContent.metadata.version}
                 </div>
               </div>
             ) : (
               <div className='text-center py-12 text-gray-500'>
                 <p className='text-lg'>
-                  Your generated educational prompt will appear here
+                  Your generated educational prompts will appear here
                 </p>
                 <p className='text-sm mt-2'>
                   Fill out the form and click generate to get started

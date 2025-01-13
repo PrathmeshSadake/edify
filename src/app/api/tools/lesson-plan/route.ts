@@ -1,5 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import {
+  LessonPlanSchema,
+  type LessonPlan,
+} from "@/schemas/lesson-plan-schema";
+import openai from "@/lib/openai";
 
 interface LessonPlanRequest {
   prompt: string;
@@ -7,19 +11,6 @@ interface LessonPlanRequest {
   subject?: string;
   duration?: string;
 }
-
-interface LessonPlanResponse {
-  content: string;
-  metadata: {
-    grade?: string;
-    subject?: string;
-    duration?: string;
-    timestamp: string;
-  };
-}
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
 export async function POST(req: Request) {
   try {
@@ -32,60 +23,78 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create a structured prompt template
-    const systemPrompt = `Generate a detailed lesson plan following this format:
-    1. Learning Objectives
-    2. Required Materials
-    3. Introduction (10 minutes)
-    4. Main Activities (broken down by time)
-    5. Assessment/Evaluation
-    6. Homework/Extension Activities
-    
-    Consider these details:
-    ${body.grade ? `Grade Level: ${body.grade}` : ""}
-    ${body.subject ? `Subject: ${body.subject}` : ""}
-    ${body.duration ? `Duration: ${body.duration}` : ""}
-    
-    Lesson plan objectives: ${body.prompt}
+    // Create a structured prompt for OpenAI
+    const systemMessage = `You are a professional curriculum developer who creates detailed lesson plans. Your responses must be valid JSON objects that strictly follow the provided schema structure. Do not include any additional text or explanations outside the JSON object.`;
 
-    Please format the response using markdown for better readability.`;
+    const userMessage = `Generate a detailed lesson plan following this exact schema structure:
+    ${JSON.stringify(LessonPlanSchema.shape, null, 2)}
 
-    const result = await model.generateContent(systemPrompt);
-    const response = await result.response;
-    const text = response.text();
+    Topic: ${body.prompt}
+    Year Group: ${body.grade || "To be determined"}
+    Subject: ${body.subject || "To be determined"}
+    Duration: ${body.duration || "60 minutes"}
 
-    // Process the text to ensure proper formatting
-    const formattedContent = text
-      .replace(/\n{3,}/g, "\n\n") // Remove excess newlines
-      .trim();
+    Include:
+    1. Clear learning objectives and success criteria
+    2. A structured lesson with timed introduction, main activities, and plenary
+    3. Assessment questions based on Bloom's taxonomy
+    4. Differentiation strategies for different learning needs
+    5. Cross-curricular connections
+    6. Required and optional resources
+    7. Extension activities and homework ideas
+    8. Teacher preparation notes and safety considerations
 
-    const responseData: LessonPlanResponse = {
-      content: formattedContent,
-      metadata: {
-        grade: body.grade || undefined,
-        subject: body.subject || undefined,
-        duration: body.duration || undefined,
-        timestamp: new Date().toISOString(),
-      },
+    Respond with ONLY a valid JSON object matching the provided schema.`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // Using GPT-4 for better structured outputs
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.7,
+      response_format: { type: "json_object" }, // Ensure JSON response
+    });
+
+    // Parse and validate the response
+    let lessonPlanData: LessonPlan;
+    try {
+      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+      lessonPlanData = LessonPlanSchema.parse({
+        ...parsed,
+        metadata: {
+          ...parsed.metadata,
+          createdAt: new Date().toISOString(),
+        },
+      });
+    } catch (parseError) {
+      console.error("Failed to parse OpenAI response:", parseError);
+      return NextResponse.json(
+        {
+          error: "Failed to generate valid lesson plan format",
+          details:
+            parseError instanceof Error ? parseError.message : "Invalid format",
+          timestamp: new Date().toISOString(),
+        },
+        { status: 500 }
+      );
+    }
+
+    // Cache control headers for better performance
+    const headers = {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
     };
 
-    // Set appropriate headers for JSON response
-    return NextResponse.json(responseData, {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store, no-cache, must-revalidate",
-      },
-    });
+    return NextResponse.json(lessonPlanData, { headers });
   } catch (error) {
     console.error("Error generating lesson plan:", error);
 
-    // Enhanced error response
     return NextResponse.json(
       {
         error: "Failed to generate lesson plan",
         details: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
-        status: 500,
       },
       {
         status: 500,

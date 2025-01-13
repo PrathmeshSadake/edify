@@ -1,34 +1,20 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import openai from "@/lib/openai";
+import {
+  PromptGeneratorResponse,
+  PromptGeneratorResponseSchema,
+} from "@/schemas/prompt-schema";
 import { NextResponse } from "next/server";
 
 interface PromptRequest {
   topic: string;
   grade?: string;
   subject?: string;
-  skillLevel?: "beginner" | "intermediate" | "advanced";
+  skillLevel?: string;
 }
-
-interface PromptResponse {
-  content: {
-    instructions: string;
-    successCriteria: string;
-    keyVocabulary: string[];
-    scaffolding: string[];
-  };
-  metadata: {
-    topic: string;
-    grade?: string;
-    subject?: string;
-    skillLevel?: string;
-    timestamp: string;
-  };
-}
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY!);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
 export async function POST(req: Request) {
   try {
+    const startTime = Date.now();
     const body: PromptRequest = await req.json();
 
     if (!body.topic) {
@@ -38,64 +24,81 @@ export async function POST(req: Request) {
       );
     }
 
-    const systemPrompt = `Generate an educational prompt with the following components clearly separated:
-    - Detailed instructions for students
-    - Success criteria
-    - Key vocabulary (as a list)
-    - Scaffolding suggestions (as a list)
+    const systemMessage = `You are an educational prompt generator. Your responses must be valid JSON objects that strictly follow the provided schema structure. Generate exactly three different versions of educational prompts based on the given topic and parameters.`;
 
-    Consider these details:
+    const userMessage = `Generate three educational prompts following this exact schema:
+    ${JSON.stringify(PromptGeneratorResponseSchema.shape, null, 2)}
+
+    Each prompt must include:
+    1. Clear prompt text
+    2. Pedagogical approach explanation
+    3. Specific focus areas
+    4. Complexity level (Bloom's Taxonomy and cognitive load 1-5)
+
+    Topic: ${body.topic}
     ${body.grade ? `Grade Level: ${body.grade}` : ""}
     ${body.subject ? `Subject: ${body.subject}` : ""}
     ${body.skillLevel ? `Skill Level: ${body.skillLevel}` : ""}
-    
-    Topic: ${body.topic}`;
 
-    const result = await model.generateContent(systemPrompt);
-    const response = await result.response;
-    const text = response.text();
+    Ensure each prompt has different:
+    - Bloom's Taxonomy levels
+    - Cognitive load ratings
+    - Pedagogical approaches
+    - Focus areas
 
-    // Parse the response into sections
-    const sections = text
-      .split(/Instructions:|Success Criteria:|Key Vocabulary:|Scaffolding:/i)
-      .filter((section) => section.trim().length > 0);
+    Respond with ONLY a valid JSON object matching the provided schema.`;
 
-    const responseData: PromptResponse = {
-      content: {
-        instructions: sections[0]?.trim() ?? "",
-        successCriteria: sections[1]?.trim() ?? "",
-        keyVocabulary:
-          sections[2]
-            ?.trim()
-            .split("\n")
-            .map((word) => word.trim())
-            .filter((word) => word.length > 0) ?? [],
-        scaffolding:
-          sections[3]
-            ?.trim()
-            .split("\n")
-            .map((step) => step.trim())
-            .filter((step) => step.length > 0) ?? [],
-      },
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemMessage },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.7,
+      response_format: { type: "json_object" },
+    });
+
+    const responseContent = completion.choices[0].message.content;
+    if (!responseContent) {
+      throw new Error("Empty response from OpenAI");
+    }
+
+    // Parse and validate the response
+    const parsedResponse = JSON.parse(responseContent);
+
+    const responseData: PromptGeneratorResponse = {
+      ...parsedResponse,
       metadata: {
-        topic: body.topic,
-        grade: body.grade,
-        subject: body.subject,
-        skillLevel: body.skillLevel,
-        timestamp: new Date().toISOString(),
+        generatedAt: new Date().toISOString(),
+        version: "1.0.0",
+        processingTimeMs: Date.now() - startTime,
       },
     };
 
-    return NextResponse.json(responseData);
+    // Validate against schema
+    const validatedResponse = PromptGeneratorResponseSchema.parse(responseData);
+
+    return NextResponse.json(validatedResponse, {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+      },
+    });
   } catch (error) {
     console.error("Error generating educational prompt:", error);
+
     return NextResponse.json(
       {
         error: "Failed to generate educational prompt",
-        message: error instanceof Error ? error.message : "Unknown error",
+        details: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString(),
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
     );
   }
 }

@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import type { LessonPlan } from "@/schemas/lesson-plan-schema";
 
 export default function LessonPlanPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [lessonPlan, setLessonPlan] = useState("");
+  const [lessonPlan, setLessonPlan] = useState<LessonPlan | null>(null);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -34,7 +35,7 @@ export default function LessonPlanPage() {
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      setLessonPlan(result.content);
+      setLessonPlan(result);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to generate lesson plan"
@@ -44,10 +45,234 @@ export default function LessonPlanPage() {
     }
   };
 
+  const renderLessonPlanContent = () => {
+    if (!lessonPlan) return null;
+
+    const content = `
+# ${lessonPlan.metadata.topic}
+
+## Lesson Overview
+**Year Group:** ${lessonPlan.metadata.yearGroup}
+**Duration:** ${lessonPlan.metadata.duration} minutes
+**Subject:** ${lessonPlan.metadata.subject}
+
+## Learning Objectives
+${lessonPlan.objectives.learning.map((obj) => `- ${obj}`).join("\n")}
+
+## Success Criteria
+${lessonPlan.objectives.success.map((crit) => `- ${crit}`).join("\n")}
+
+## Lesson Structure
+
+### Introduction (${lessonPlan.lessonStructure.introduction.duration} minutes)
+${lessonPlan.lessonStructure.introduction.activities
+  .map(
+    (activity) => `
+#### ${activity.title} (${activity.duration} minutes)
+${activity.description}
+
+Instructions:
+${activity.instructions.map((inst) => `- ${inst}`).join("\n")}
+${
+  activity.materials
+    ? `\nMaterials:\n${activity.materials.map((mat) => `- ${mat}`).join("\n")}`
+    : ""
+}
+`
+  )
+  .join("\n")}
+
+### Main Activities
+${lessonPlan.lessonStructure.mainActivities
+  .map(
+    (activity) => `
+#### ${activity.title} (${activity.duration} minutes)
+${activity.description}
+
+Instructions:
+${activity.instructions.map((inst) => `- ${inst}`).join("\n")}
+${
+  activity.materials
+    ? `\nMaterials:\n${activity.materials.map((mat) => `- ${mat}`).join("\n")}`
+    : ""
+}
+`
+  )
+  .join("\n")}
+
+### Plenary (${lessonPlan.lessonStructure.plenary.duration} minutes)
+${lessonPlan.lessonStructure.plenary.activities
+  .map(
+    (activity) => `
+#### ${activity.title} (${activity.duration} minutes)
+${activity.description}
+
+Instructions:
+${activity.instructions.map((inst) => `- ${inst}`).join("\n")}
+`
+  )
+  .join("\n")}
+
+## Assessment
+### Formative Assessment Questions
+${lessonPlan.assessment.formative
+  .map(
+    (q) => `
+- **${q.type.charAt(0).toUpperCase() + q.type.slice(1)}:** ${q.question}
+${q.suggestedAnswer ? `  *Suggested Answer:* ${q.suggestedAnswer}` : ""}
+`
+  )
+  .join("\n")}
+
+${
+  lessonPlan.assessment.summative
+    ? `
+### Summative Assessment Questions
+${lessonPlan.assessment.summative
+  .map(
+    (q) => `
+- **${q.type.charAt(0).toUpperCase() + q.type.slice(1)}:** ${q.question}
+${q.suggestedAnswer ? `  *Suggested Answer:* ${q.suggestedAnswer}` : ""}
+`
+  )
+  .join("\n")}`
+    : ""
+}
+
+## Differentiation Strategies
+${lessonPlan.differentiation.strategies
+  .map(
+    (strategy) => `
+### For ${strategy.studentType}
+- Accommodations: ${strategy.accommodations.join(", ")}
+${strategy.resources ? `- Resources: ${strategy.resources.join(", ")}` : ""}
+- Teaching Strategies: ${strategy.teachingStrategies.join(", ")}
+`
+  )
+  .join("\n")}
+
+## Cross-Curricular Links
+${lessonPlan.crossCurricularLinks
+  .map(
+    (link) => `
+- **${link.subject}:** ${link.connection}
+${
+  link.suggestedActivity
+    ? `  *Suggested Activity:* ${link.suggestedActivity}`
+    : ""
+}
+`
+  )
+  .join("\n")}
+
+## Resources
+### Required Resources
+${lessonPlan.resources.required.map((resource) => `- ${resource}`).join("\n")}
+
+${
+  lessonPlan.resources.optional
+    ? `
+### Optional Resources
+${lessonPlan.resources.optional.map((resource) => `- ${resource}`).join("\n")}
+`
+    : ""
+}
+
+${
+  lessonPlan.resources.digital
+    ? `
+### Digital Resources
+${lessonPlan.resources.digital.map((resource) => `- ${resource}`).join("\n")}
+`
+    : ""
+}
+
+${
+  lessonPlan.extension
+    ? `
+## Extension Activities
+### Enrichment Activities
+${lessonPlan.extension.enrichmentActivities
+  .map((activity) => `- ${activity}`)
+  .join("\n")}
+
+${
+  lessonPlan.extension.homeworkIdeas
+    ? `
+### Homework Ideas
+${lessonPlan.extension.homeworkIdeas.map((idea) => `- ${idea}`).join("\n")}
+`
+    : ""
+}
+
+${
+  lessonPlan.extension.furtherReading
+    ? `
+### Further Reading
+${lessonPlan.extension.furtherReading
+  .map((reading) => `- ${reading}`)
+  .join("\n")}
+`
+    : ""
+}
+`
+    : ""
+}
+
+${
+  lessonPlan.teacherNotes
+    ? `
+## Teacher Notes
+${
+  lessonPlan.teacherNotes.preparation
+    ? `
+### Preparation
+${lessonPlan.teacherNotes.preparation.map((note) => `- ${note}`).join("\n")}
+`
+    : ""
+}
+
+${
+  lessonPlan.teacherNotes.safetyConsiderations
+    ? `
+### Safety Considerations
+${lessonPlan.teacherNotes.safetyConsiderations
+  .map((note) => `- ${note}`)
+  .join("\n")}
+`
+    : ""
+}
+
+${
+  lessonPlan.teacherNotes.commonMisconceptions
+    ? `
+### Common Misconceptions
+${lessonPlan.teacherNotes.commonMisconceptions
+  .map((note) => `- ${note}`)
+  .join("\n")}
+`
+    : ""
+}
+
+${
+  lessonPlan.teacherNotes.tips
+    ? `
+### Teaching Tips
+${lessonPlan.teacherNotes.tips.map((tip) => `- ${tip}`).join("\n")}
+`
+    : ""
+}
+`
+    : ""
+}
+`;
+
+    return content.trim();
+  };
+
   return (
     <div className='min-h-screen bg-gray-50'>
       <div className='container mx-auto px-4 py-12'>
-        {/* Header Section */}
         <div className='text-center mb-12'>
           <h1 className='text-4xl font-bold text-gray-900 mb-4'>
             Lesson Plan Generator
@@ -59,7 +284,6 @@ export default function LessonPlanPage() {
         </div>
 
         <div className='grid gap-8 lg:grid-cols-2 max-w-7xl mx-auto'>
-          {/* Form Card */}
           <Card className='p-8 shadow-lg hover:shadow-xl transition-shadow duration-300'>
             <form onSubmit={handleSubmit} className='space-y-6'>
               <div className='space-y-2'>
@@ -128,7 +352,6 @@ export default function LessonPlanPage() {
             </form>
           </Card>
 
-          {/* Result Card */}
           <Card className='p-8 shadow-lg h-fit'>
             <h2 className='text-2xl font-bold text-gray-900 mb-6'>
               Generated Lesson Plan
@@ -163,6 +386,11 @@ export default function LessonPlanPage() {
                       h3: ({ children }) => (
                         <h3 className='text-lg font-medium mb-2'>{children}</h3>
                       ),
+                      h4: ({ children }) => (
+                        <h4 className='text-base font-medium mb-2'>
+                          {children}
+                        </h4>
+                      ),
                       p: ({ children }) => (
                         <p className='mb-4 text-gray-700'>{children}</p>
                       ),
@@ -177,7 +405,7 @@ export default function LessonPlanPage() {
                       ),
                     }}
                   >
-                    {lessonPlan}
+                    {renderLessonPlanContent()}
                   </ReactMarkdown>
                 </div>
               </div>
