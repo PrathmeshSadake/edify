@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       schema: LessonPlanSchema,
       prompt: systemMessage + userMessage,
     });
-
+    console.log(object);
     // Parse and validate the response
     let lessonPlanData: any;
     try {
