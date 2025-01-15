@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -11,69 +12,58 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Loader2,
-  ClipboardCopy,
-  CheckCircle2,
-  AlertCircle,
-  Plus,
-  Minus,
-} from "lucide-react";
-import { toast } from "sonner";
-import {
-  AssignmentTypeEnum,
-  KeyStageEnum,
-  AssessmentTypeEnum,
-  RubricResponse,
-} from "@/schemas/rubric-schema";
+import { Plus, Minus, Loader2 } from "lucide-react";
+import type { RubricResponse } from "@/schemas/rubric-schema";
 
-const RubricGenerator = () => {
+const assignmentTypes = [
+  { value: "analytical_essay", label: "Analytical Essay" },
+  { value: "debate", label: "Debate" },
+  { value: "research_project", label: "Research Project" },
+  { value: "presentation", label: "Presentation" },
+  { value: "other", label: "Other" },
+];
+
+const keyStages = [
+  { value: "ks3", label: "Key Stage 3" },
+  { value: "ks4", label: "Key Stage 4" },
+  { value: "ks5", label: "Key Stage 5" },
+];
+
+const assessmentTypes = [
+  { value: "teacher", label: "Teacher Assessment" },
+  { value: "peer", label: "Peer Assessment" },
+  { value: "self", label: "Self Assessment" },
+];
+
+export default function RubricGeneratorPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [rubricResponse, setRubricResponse] = useState<RubricResponse | null>(
-    null
-  );
+  const [rubricResponse, setRubricResponse] = useState<RubricResponse | null>(null);
   const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
   const [criteria, setCriteria] = useState<string[]>([""]);
-
-  const addCriterion = () => {
-    if (criteria.length < 6) {
-      setCriteria([...criteria, ""]);
-    }
-  };
-
-  const removeCriterion = (index: number) => {
-    if (criteria.length > 1) {
-      const newCriteria = criteria.filter((_, i) => i !== index);
-      setCriteria(newCriteria);
-    }
-  };
-
-  const updateCriterion = (index: number, value: string) => {
-    const newCriteria = [...criteria];
-    newCriteria[index] = value;
-    setCriteria(newCriteria);
-  };
+  const [showCustomType, setShowCustomType] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-    setCopied(false);
 
     const formData = new FormData(e.currentTarget);
     const data = {
-      assignmentType: formData.get("assignmentType") as any,
-      customAssignmentType:
-        (formData.get("customAssignmentType") as string) || undefined,
-      keyStage: formData.get("keyStage") as any,
+      assignmentType: formData.get("assignmentType"),
+      customAssignmentType: formData.get("customAssignmentType"),
+      keyStage: formData.get("keyStage"),
       yearGroup: Number(formData.get("yearGroup")),
-      assessmentType: formData.get("assessmentType") as any,
-      criteria: criteria.filter((c) => c.trim() !== ""),
-      additionalInstructions:
-        (formData.get("additionalInstructions") as string) || undefined,
+      assessmentType: formData.get("assessmentType"),
+      criteria: criteria.filter(c => c.trim() !== ""),
+      additionalInstructions: formData.get("additionalInstructions"),
     };
+
+    // Validate required fields
+    if (!data.assignmentType || !data.keyStage || data.criteria.length === 0) {
+      setError("Please fill in all required fields");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch("/api/tools/rubric-generator", {
@@ -85,205 +75,143 @@ const RubricGenerator = () => {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
       setRubricResponse(result);
-      toast.success("Rubric generated successfully!");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to generate rubric"
-      );
-      toast.error("Failed to generate rubric");
+      setError(err instanceof Error ? err.message : "Failed to generate rubric");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const copyToClipboard = async () => {
-    if (!rubricResponse) return;
-
-    const rubricText = `
-Assignment Type: ${rubricResponse.metadata.assignmentType}
-${
-  rubricResponse.metadata.customAssignmentType
-    ? `Custom Type: ${rubricResponse.metadata.customAssignmentType}\n`
-    : ""
-}
-Key Stage: ${rubricResponse.metadata.keyStage}
-Year Group: ${rubricResponse.metadata.yearGroup}
-
-Criteria:
-${rubricResponse.rubric.criteria
-  .map(
-    (criterion, i) => `
-${i + 1}. ${criterion.name}
-Description: ${criterion.description}
-
-Performance Levels:
-${Object.entries(criterion.feedbackByLevel)
-  .map(
-    ([level, feedback]) => `
-${level.toUpperCase()}
-- Feedback: ${feedback.text}
-- Suggestions: ${feedback.suggestions.join(", ")}
-- Actionable Steps: ${feedback.actionableSteps.join(", ")}
-`
-  )
-  .join("\n")}
-`
-  )
-  .join("\n")}
-
-Instructions:
-Teacher: ${rubricResponse.rubric.instructions.teacher.join("\n")}
-${
-  rubricResponse.rubric.instructions.peer
-    ? `Peer: ${rubricResponse.rubric.instructions.peer.join("\n")}`
-    : ""
-}
-${
-  rubricResponse.rubric.instructions.self
-    ? `Self: ${rubricResponse.rubric.instructions.self.join("\n")}`
-    : ""
-}
-
-Reflection Prompts:
-${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
-
-    try {
-      await navigator.clipboard.writeText(rubricText);
-      setCopied(true);
-      toast.success("Rubric copied to clipboard!");
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      toast.error("Failed to copy to clipboard");
+  const addCriterion = () => {
+    if (criteria.length < 6) {
+      setCriteria([...criteria, ""]);
     }
   };
 
-  return (
-    <div className='min-h-screen bg-gradient-to-b from-gray-50 to-white'>
-      <div className='container mx-auto px-4 py-12'>
-        <div className='max-w-4xl mx-auto'>
-          {/* Header Section */}
-          <div className='text-center mb-12'>
-            <h1 className='text-4xl font-bold text-gray-900 mb-4'>
-              Educational Rubric Generator
-            </h1>
-            <p className='text-lg text-gray-600 max-w-2xl mx-auto'>
-              Create detailed assessment rubrics with specific feedback and
-              performance levels.
-            </p>
-          </div>
+  const removeCriterion = (index: number) => {
+    if (criteria.length > 1) {
+      setCriteria(criteria.filter((_, i) => i !== index));
+    }
+  };
 
+  const updateCriterion = (index: number, value: string) => {
+    const newCriteria = [...criteria];
+    newCriteria[index] = value;
+    setCriteria(newCriteria);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-12">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Rubric Generator
+          </h1>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Create detailed assessment rubrics with specific criteria and
+            performance levels.
+          </p>
+        </div>
+
+        <div className="grid gap-8 lg:grid-cols-2 max-w-7xl mx-auto">
           {/* Form Card */}
-          <Card className='p-8 shadow-lg hover:shadow-xl transition-shadow duration-300'>
-            <form onSubmit={handleSubmit} className='space-y-6'>
-              <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-                <div className='space-y-2'>
-                  <Label htmlFor='assignmentType'>Assignment Type</Label>
-                  <Select name='assignmentType' required>
+          <Card className="p-8 shadow-lg">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="assignmentType">Assignment Type</Label>
+                <Select 
+                  name="assignmentType" 
+                  onValueChange={(value) => setShowCustomType(value === "other")}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assignment type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assignmentTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {showCustomType && (
+                <div className="space-y-2">
+                  <Label htmlFor="customAssignmentType">
+                    Custom Assignment Type
+                  </Label>
+                  <Input
+                    id="customAssignmentType"
+                    name="customAssignmentType"
+                    required
+                    placeholder="Enter custom assignment type..."
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="keyStage">Key Stage</Label>
+                  <Select name="keyStage">
                     <SelectTrigger>
-                      <SelectValue placeholder='Select assignment type' />
+                      <SelectValue placeholder="Select key stage" />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.values(AssignmentTypeEnum.Values).map(
-                        (type, index) => (
-                          <SelectItem
-                            key={`assignment-type-${index}`}
-                            value={type}
-                          >
-                            {type}
-                          </SelectItem>
-                        )
-                      )}
+                      {keyStages.map((stage) => (
+                        <SelectItem key={stage.value} value={stage.value}>
+                          {stage.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className='space-y-2'>
-                  <Label htmlFor='customAssignmentType'>
-                    Custom Assignment Type
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="yearGroup">Year Group</Label>
                   <Input
-                    id='customAssignmentType'
-                    name='customAssignmentType'
-                    placeholder='Optional custom type'
+                    id="yearGroup"
+                    name="yearGroup"
+                    type="number"
+                    required
+                    min={7}
+                    max={13}
                   />
                 </div>
               </div>
 
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-                <div className='space-y-2'>
-                  <Label htmlFor='keyStage'>Key Stage</Label>
-                  <Select name='keyStage' required>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Select key stage' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.values(KeyStageEnum.Values).map(
-                        (stage, index) => (
-                          <SelectItem key={`key-stage-${index}`} value={stage}>
-                            {stage}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className='space-y-2'>
-                  <Label htmlFor='yearGroup'>Year Group</Label>
-                  <Select name='yearGroup' required>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Select year group' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: 7 }, (_, i) => i + 7).map(
-                        (year) => (
-                          <SelectItem key={year} value={year.toString()}>
-                            Year {year}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className='space-y-2'>
-                  <Label htmlFor='assessmentType'>Assessment Type</Label>
-                  <Select name='assessmentType' required>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Select assessment type' />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.values(AssessmentTypeEnum.Values).map(
-                        (type, index) => (
-                          <SelectItem
-                            key={`assignment-type2-${index}`}
-                            value={type}
-                          >
-                            {type}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="assessmentType">Assessment Type</Label>
+                <Select name="assessmentType">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select assessment type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assessmentTypes.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
-              <div className='space-y-4'>
-                <div className='flex justify-between items-center'>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
                   <Label>Assessment Criteria</Label>
                   <Button
-                    type='button'
-                    variant='outline'
-                    size='sm'
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={addCriterion}
                     disabled={criteria.length >= 6}
                   >
-                    <Plus className='h-4 w-4 mr-2' />
+                    <Plus className="h-4 w-4" />
                     Add Criterion
                   </Button>
                 </div>
                 {criteria.map((criterion, index) => (
-                  <div key={`criterion-${index}`} className='flex gap-2'>
+                  <div key={index} className="flex gap-2">
                     <Input
                       value={criterion}
                       onChange={(e) => updateCriterion(index, e.target.value)}
@@ -292,39 +220,39 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                     />
                     {criteria.length > 1 && (
                       <Button
-                        type='button'
-                        variant='outline'
-                        size='icon'
+                        type="button"
+                        variant="outline"
+                        size="icon"
                         onClick={() => removeCriterion(index)}
                       >
-                        <Minus className='h-4 w-4' />
+                        <Minus className="h-4 w-4" />
                       </Button>
                     )}
                   </div>
                 ))}
               </div>
 
-              <div className='space-y-2'>
-                <Label htmlFor='additionalInstructions'>
-                  Additional Instructions
+              <div className="space-y-2">
+                <Label htmlFor="additionalInstructions">
+                  Additional Instructions (Optional)
                 </Label>
                 <Textarea
-                  id='additionalInstructions'
-                  name='additionalInstructions'
-                  placeholder='Optional additional instructions...'
-                  className='min-h-[100px]'
+                  id="additionalInstructions"
+                  name="additionalInstructions"
+                  placeholder="Enter any additional instructions..."
+                  className="min-h-[100px]"
                 />
               </div>
 
               <Button
-                type='submit'
-                disabled={isLoading}
-                className='w-full h-12 text-base font-semibold'
+                type="submit"
+                disabled={isLoading || criteria.some((c) => !c.trim())}
+                className="w-full"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className='mr-2 h-5 w-5 animate-spin' />
-                    Generating Rubric...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
                   </>
                 ) : (
                   "Generate Rubric"
@@ -333,175 +261,137 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
             </form>
           </Card>
 
-          {error && (
-            <div className='mt-6 bg-red-50 border border-red-200 text-red-600 p-4 rounded-lg flex items-center'>
-              <AlertCircle className='h-5 w-5 mr-2 flex-shrink-0' />
-              <p>{error}</p>
-            </div>
-          )}
+          {/* Results Card */}
+          <Card className="p-8 shadow-lg">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Generated Rubric
+            </h2>
 
-          {/* Result Card */}
-          {rubricResponse && (
-            <Card className='mt-8 p-8 shadow-lg'>
-              <div className='flex justify-between items-center mb-6'>
-                <h2 className='text-2xl font-bold text-gray-900'>
-                  Generated Rubric
-                </h2>
-                <Button
-                  variant='outline'
-                  onClick={copyToClipboard}
-                  className='transition-all duration-200'
-                >
-                  {copied ? (
-                    <>
-                      <CheckCircle2 className='h-4 w-4 mr-2 text-green-500' />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <ClipboardCopy className='h-4 w-4 mr-2' />
-                      Copy to Clipboard
-                    </>
-                  )}
-                </Button>
+            {error && (
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6">
+                {error}
               </div>
+            )}
 
-              <div className='space-y-8'>
-                {/* Metadata Section */}
-                <div className='bg-gray-50 p-4 rounded-lg'>
-                  <h3 className='text-lg font-semibold mb-2'>Metadata</h3>
-                  <div className='grid grid-cols-2 gap-4'>
-                    <div>
-                      <p className='text-sm text-gray-500'>Assignment Type</p>
-                      <p className='font-medium'>
-                        {rubricResponse.metadata.assignmentType.replace(
-                          "_",
-                          " "
-                        )}
-                      </p>
-                    </div>
-                    {rubricResponse.metadata.customAssignmentType && (
-                      <div>
-                        <p className='text-sm text-gray-500'>Custom Type</p>
-                        <p className='font-medium'>
-                          {rubricResponse.metadata.customAssignmentType}
-                        </p>
-                      </div>
-                    )}
-                    <div>
-                      <p className='text-sm text-gray-500'>Key Stage</p>
-                      <p className='font-medium'>
-                        {rubricResponse.metadata.keyStage.toUpperCase()}
-                      </p>
-                    </div>
-                    <div>
-                      <p className='text-sm text-gray-500'>Year Group</p>
-                      <p className='font-medium'>
-                        Year {rubricResponse.metadata.yearGroup}
-                      </p>
-                    </div>
+            {isLoading ? (
+              <div className="animate-pulse space-y-4">
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+              </div>
+            ) : rubricResponse?.data ? (
+              <div className="space-y-6">
+                {/* Metadata */}
+                <div className="bg-white p-6 rounded-lg border border-gray-100">
+                  <h3 className="font-semibold text-gray-900 mb-3">Details</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <p>Assignment: {rubricResponse.data.metadata.assignmentType}</p>
+                    <p>Key Stage: {rubricResponse.data.metadata.keyStage}</p>
+                    <p>Year Group: {rubricResponse.data.metadata.yearGroup}</p>
+                    <p>Assessment: {rubricResponse.data.metadata.assessmentType}</p>
                   </div>
                 </div>
 
-                {/* Criteria Section */}
-                {rubricResponse.rubric.criteria.map((criterion, index) => (
-                  <div
-                    key={index}
-                    className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'
-                  >
-                    <h3 className='text-xl font-semibold text-gray-900 mb-2'>
-                      {criterion.name}
-                    </h3>
-                    <p className='text-gray-600 mb-4'>
-                      {criterion.description}
-                    </p>
-                    <div className='space-y-4'>
-                      {Object.entries(criterion.feedbackByLevel).map(
-                        ([level, feedback]) => (
-                          <div
-                            key={level}
-                            className='bg-gray-50 p-4 rounded-lg'
-                          >
-                            <h4 className='font-medium text-gray-900 mb-2'>
-                              {level.replace("_", " ").toUpperCase()}
-                            </h4>
-                            <p className='text-gray-600 mb-2'>
-                              {feedback.text}
-                            </p>
+                {/* Criteria */}
+                <div className="space-y-4">
+                  {rubricResponse.data.rubric.criteria.map((criterion, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-white p-6 rounded-lg border border-gray-100"
+                    >
+                      <h3 className="font-semibold text-gray-900 mb-2">
+                        {criterion.name}
+                      </h3>
+                      <p className="text-gray-600 mb-4">{criterion.description}</p>
 
-                            <div className='space-y-2'>
-                              <div>
-                                <p className='text-sm font-medium text-gray-500'>
-                                  Suggestions:
-                                </p>
-                                <ul className='list-disc list-inside text-gray-600 pl-4'>
-                                  {feedback.suggestions.map((suggestion, i) => (
-                                    <li>{suggestion}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                              <div>
-                                <p className='text-sm font-medium text-gray-500'>
-                                  Actionable Steps:
-                                </p>
-                                <ul className='list-disc list-inside text-gray-600 pl-4'>
-                                  {feedback.actionableSteps.map((step, i) => (
-                                    <li>{step}</li>
-                                  ))}
-                                </ul>
+                      <div className="space-y-4">
+                        {Object.entries(criterion.feedbackByLevel).map(
+                          ([level, feedback]) => (
+                            <div
+                              key={level}
+                              className="bg-gray-50 p-4 rounded-lg"
+                            >
+                              <h4 className="font-medium text-gray-900 mb-2">
+                                {level.replace("_", " ").toUpperCase()}
+                              </h4>
+                              <p className="text-gray-700 mb-2">
+                                {feedback.text}
+                              </p>
+
+                              <div className="space-y-2">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700">
+                                    Suggestions:
+                                  </p>
+                                  <ul className="list-disc list-inside text-sm text-gray-600">
+                                    {feedback.suggestions.map((suggestion, i) => (
+                                      <li key={i}>{suggestion}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700">
+                                    Action Steps:
+                                  </p>
+                                  <ul className="list-disc list-inside text-sm text-gray-600">
+                                    {feedback.actionableSteps.map((step, i) => (
+                                      <li key={i}>{step}</li>
+                                    ))}
+                                  </ul>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )
-                      )}
+                          )
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
 
-                {/* Instructions Section */}
-                <div className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'>
-                  <h3 className='text-xl font-semibold text-gray-900 mb-4'>
+                {/* Instructions */}
+                <div className="bg-white p-6 rounded-lg border border-gray-100">
+                  <h3 className="font-semibold text-gray-900 mb-3">
                     Instructions
                   </h3>
-
-                  <div className='space-y-4'>
+                  <div className="space-y-4">
                     <div>
-                      <h4 className='font-medium text-gray-900 mb-2'>
+                      <h4 className="font-medium text-gray-900 mb-2">
                         For Teachers:
                       </h4>
-                      <ul className='list-disc list-inside text-gray-600 pl-4'>
-                        {rubricResponse.rubric.instructions.teacher.map(
+                      <ul className="list-disc list-inside text-gray-600">
+                        {rubricResponse.data.rubric.instructions.teacher.map(
                           (instruction, i) => (
-                            <li>{instruction}</li>
+                            <li key={i}>{instruction}</li>
                           )
                         )}
                       </ul>
                     </div>
 
-                    {rubricResponse.rubric.instructions.peer && (
+                    {rubricResponse.data.rubric.instructions.peer && (
                       <div>
-                        <h4 className='font-medium text-gray-900 mb-2'>
+                        <h4 className="font-medium text-gray-900 mb-2">
                           For Peer Assessment:
                         </h4>
-                        <ul className='list-disc list-inside text-gray-600 pl-4'>
-                          {rubricResponse.rubric.instructions.peer.map(
+                        <ul className="list-disc list-inside text-gray-600">
+                          {rubricResponse.data.rubric.instructions.peer.map(
                             (instruction, i) => (
-                              <li>{instruction}</li>
+                              <li key={i}>{instruction}</li>
                             )
                           )}
                         </ul>
                       </div>
                     )}
 
-                    {rubricResponse.rubric.instructions.self && (
+                    {rubricResponse.data.rubric.instructions.self && (
                       <div>
-                        <h4 className='font-medium text-gray-900 mb-2'>
+                        <h4 className="font-medium text-gray-900 mb-2">
                           For Self Assessment:
                         </h4>
-                        <ul className='list-disc list-inside text-gray-600 pl-4'>
-                          {rubricResponse.rubric.instructions.self.map(
+                        <ul className="list-disc list-inside text-gray-600">
+                          {rubricResponse.data.rubric.instructions.self.map(
                             (instruction, i) => (
-                              <li>{instruction}</li>
+                              <li key={i}>{instruction}</li>
                             )
                           )}
                         </ul>
@@ -510,36 +400,21 @@ ${rubricResponse.rubric.reflectionPrompts.join("\n")}`;
                   </div>
                 </div>
 
-                {/* Reflection Prompts Section */}
-                <div className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'>
-                  <h3 className='text-xl font-semibold text-gray-900 mb-4'>
-                    Reflection Prompts
-                  </h3>
-                  <ul className='list-disc list-inside text-gray-600 pl-4'>
-                    {rubricResponse.rubric.reflectionPrompts.map(
-                      (prompt, i) => (
-                        <li>{prompt}</li>
-                      )
-                    )}
-                  </ul>
-                </div>
-
                 {/* Metadata Footer */}
-                <div className='text-sm text-gray-500 mt-4'>
-                  <p>Rubric ID: {rubricResponse.id}</p>
-                  <p>
-                    Created:{" "}
-                    {new Date(rubricResponse.createdAt).toLocaleString()}
-                  </p>
-                  <p>Version: {rubricResponse.version}</p>
+                <div className="text-sm text-gray-500 mt-4">
+                  <p>ID: {rubricResponse.data.id}</p>
+                  <p>Created: {new Date(rubricResponse.data.createdAt).toLocaleString()}</p>
+                  <p>Version: {rubricResponse.data.version}</p>
                 </div>
               </div>
-            </Card>
-          )}
+            ) : (
+              <p className="text-center text-gray-500">
+                Your generated rubric will appear here
+              </p>
+            )}
+          </Card>
         </div>
       </div>
     </div>
   );
-};
-
-export default RubricGenerator;
+}

@@ -11,24 +11,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Loader2,
-  BookOpen,
-  Brain,
-  Link as LinkIcon,
-  FileText,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
+import type { PEELResponse } from "@/schemas/peel-schema";
 
-interface PEELContent {
-  point?: string;
-  evidence?: string;
-  explanation?: string;
-  link?: string;
-}
+const complexityLevels = [
+  { value: "basic", label: "Basic" },
+  { value: "intermediate", label: "Intermediate" },
+  { value: "advanced", label: "Advanced" },
+];
 
-export default function PEELPage() {
+export default function PEELGeneratorPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [peelContent, setPeelContent] = useState<PEELContent>({});
+  const [peelResponse, setPEELResponse] = useState<PEELResponse | null>(null);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -52,7 +46,7 @@ export default function PEELPage() {
 
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      setPeelContent(result.content);
+      setPEELResponse(result);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to generate PEEL paragraph"
@@ -62,90 +56,62 @@ export default function PEELPage() {
     }
   };
 
-  const renderPEELSection = (
-    title: string,
-    content: string | undefined,
-    icon: React.ReactNode,
-    iconColor: string
-  ) => (
-    <div className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-200'>
-      <h3 className='text-lg font-semibold text-gray-900 mb-3 flex items-center'>
-        <div className={`mr-2 ${iconColor}`}>{icon}</div>
-        {title}
-      </h3>
-      <p className='text-gray-700 leading-relaxed whitespace-pre-line'>
-        {content}
-      </p>
-    </div>
-  );
-
   return (
-    <div className='min-h-screen bg-gradient-to-b from-gray-50 to-white'>
-      <div className='container mx-auto px-4 py-12'>
-        {/* Header Section */}
-        <div className='text-center mb-12'>
-          <h1 className='text-4xl font-bold text-gray-900 mb-4'>
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-12">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
             PEEL Paragraph Generator
           </h1>
-          <p className='text-lg text-gray-600 max-w-2xl mx-auto'>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Generate well-structured paragraphs using the PEEL (Point, Evidence,
-            Explanation, Link) format to enhance your writing and argumentation.
+            Explanation, Link) format to enhance your writing.
           </p>
         </div>
 
-        <div className='grid gap-8 lg:grid-cols-2 max-w-7xl mx-auto'>
+        <div className="grid gap-8 lg:grid-cols-2 max-w-7xl mx-auto">
           {/* Form Card */}
-          <Card className='p-8 shadow-lg hover:shadow-xl transition-shadow duration-300'>
-            <form onSubmit={handleSubmit} className='space-y-6'>
-              <div className='space-y-2'>
-                <Label htmlFor='topic' className='text-sm font-semibold'>
-                  Topic
-                </Label>
+          <Card className="p-8 shadow-lg">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="topic">Topic</Label>
                 <Input
-                  id='topic'
-                  name='topic'
+                  id="topic"
+                  name="topic"
                   required
-                  placeholder='Enter your topic...'
-                  className='h-12 transition-colors focus:border-blue-400'
+                  placeholder="Enter your topic..."
                 />
               </div>
 
-              <div className='space-y-2'>
-                <Label htmlFor='subject' className='text-sm font-semibold'>
-                  Subject
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="subject">Subject Area</Label>
                 <Input
-                  id='subject'
-                  name='subject'
-                  placeholder='e.g., History'
-                  className='h-12 transition-colors focus:border-blue-400'
+                  id="subject"
+                  name="subject"
+                  placeholder="e.g., History, Science..."
                 />
               </div>
 
-              <div className='space-y-2'>
-                <Label htmlFor='complexity' className='text-sm font-semibold'>
-                  Complexity Level
-                </Label>
-                <Select name='complexity'>
-                  <SelectTrigger className='h-12'>
-                    <SelectValue placeholder='Select complexity level' />
+              <div className="space-y-2">
+                <Label htmlFor="complexity">Complexity Level</Label>
+                <Select name="complexity" defaultValue="intermediate">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select complexity level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='basic'>Basic</SelectItem>
-                    <SelectItem value='intermediate'>Intermediate</SelectItem>
-                    <SelectItem value='advanced'>Advanced</SelectItem>
+                    {complexityLevels.map((level) => (
+                      <SelectItem key={level.value} value={level.value}>
+                        {level.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              <Button
-                type='submit'
-                disabled={isLoading}
-                className='w-full h-12 text-base font-semibold transition-all duration-200 hover:scale-[1.02]'
-              >
+              <Button type="submit" disabled={isLoading} className="w-full">
                 {isLoading ? (
                   <>
-                    <Loader2 className='mr-2 h-5 w-5 animate-spin' />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Generating...
                   </>
                 ) : (
@@ -155,66 +121,72 @@ export default function PEELPage() {
             </form>
           </Card>
 
-          {/* Result Card */}
-          <Card className='p-8 shadow-lg'>
-            <h2 className='text-2xl font-bold text-gray-900 mb-6 flex items-center'>
-              <FileText className='mr-2 h-6 w-6' />
+          {/* Results Card */}
+          <Card className="p-8 shadow-lg">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
               Generated PEEL Paragraph
             </h2>
 
             {error && (
-              <div className='bg-red-50 text-red-600 p-4 rounded-lg mb-6 border border-red-100'>
-                <p className='font-medium'>{error}</p>
+              <div className="bg-red-50 text-red-600 p-4 rounded-lg mb-6">
+                {error}
               </div>
             )}
 
             {isLoading ? (
-              <div className='animate-pulse space-y-6'>
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className='space-y-3'>
-                    <div className='h-4 bg-gray-200 rounded w-1/4'></div>
-                    <div className='h-4 bg-gray-200 rounded w-full'></div>
-                    <div className='h-4 bg-gray-200 rounded w-5/6'></div>
-                  </div>
-                ))}
+              <div className="animate-pulse space-y-4">
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
               </div>
-            ) : peelContent.point ? (
-              <div className='space-y-6'>
-                {renderPEELSection(
-                  "Point",
-                  peelContent.point,
-                  <Brain className='h-5 w-5' />,
-                  "text-blue-500"
-                )}
-                {renderPEELSection(
-                  "Evidence",
-                  peelContent.evidence,
-                  <BookOpen className='h-5 w-5' />,
-                  "text-green-500"
-                )}
-                {renderPEELSection(
-                  "Explanation",
-                  peelContent.explanation,
-                  <FileText className='h-5 w-5' />,
-                  "text-purple-500"
-                )}
-                {renderPEELSection(
-                  "Link",
-                  peelContent.link,
-                  <LinkIcon className='h-5 w-5' />,
-                  "text-orange-500"
-                )}
+            ) : peelResponse ? (
+              <div className="space-y-6">
+                {/* Point Section */}
+                <div className="bg-white p-6 rounded-lg border border-gray-100">
+                  <h3 className="font-semibold text-gray-900 mb-3">Point</h3>
+                  <p className="text-gray-700">{peelResponse.content.point}</p>
+                </div>
+
+                {/* Evidence Section */}
+                <div className="bg-white p-6 rounded-lg border border-gray-100">
+                  <h3 className="font-semibold text-gray-900 mb-3">Evidence</h3>
+                  <p className="text-gray-700">{peelResponse.content.evidence}</p>
+                </div>
+
+                {/* Explanation Section */}
+                <div className="bg-white p-6 rounded-lg border border-gray-100">
+                  <h3 className="font-semibold text-gray-900 mb-3">
+                    Explanation
+                  </h3>
+                  <p className="text-gray-700">
+                    {peelResponse.content.explanation}
+                  </p>
+                </div>
+
+                {/* Link Section */}
+                <div className="bg-white p-6 rounded-lg border border-gray-100">
+                  <h3 className="font-semibold text-gray-900 mb-3">Link</h3>
+                  <p className="text-gray-700">{peelResponse.content.link}</p>
+                </div>
+
+                {/* Metadata */}
+                <div className="text-sm text-gray-500 mt-4">
+                  {peelResponse.metadata.subject && (
+                    <p>Subject: {peelResponse.metadata.subject}</p>
+                  )}
+                  {peelResponse.metadata.complexity && (
+                    <p>Complexity: {peelResponse.metadata.complexity}</p>
+                  )}
+                  <p>
+                    Generated:{" "}
+                    {new Date(peelResponse.metadata.timestamp).toLocaleString()}
+                  </p>
+                </div>
               </div>
             ) : (
-              <div className='text-center py-12 text-gray-500'>
-                <FileText className='h-12 w-12 mx-auto mb-4 opacity-50' />
-                <p className='text-lg'>
-                  Your generated PEEL paragraph will appear here
-                </p>
-                <p className='text-sm mt-2'>
-                  Fill out the form and click generate to get started
-                </p>
-              </div>
+              <p className="text-center text-gray-500">
+                Your generated PEEL paragraph will appear here
+              </p>
             )}
           </Card>
         </div>

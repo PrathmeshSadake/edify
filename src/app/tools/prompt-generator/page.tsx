@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -12,30 +13,32 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import {
-  PromptGeneratorResponse,
-  PromptGeneratorResponseSchema,
-} from "@/schemas/prompt-schema";
+import type { PromptGeneratorResponse } from "@/schemas/prompt-schema";
 
-export default function PromptPage() {
+export default function PromptGeneratorPage() {
   const [isLoading, setIsLoading] = useState(false);
-  const [promptContent, setPromptContent] =
-    useState<PromptGeneratorResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [promptResponse, setPromptResponse] = useState<PromptGeneratorResponse | null>(null);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
-    setError(null);
+    setError("");
 
     const formData = new FormData(e.currentTarget);
     const data = {
-      topic: formData.get("topic"),
+      originalPrompt: formData.get("originalPrompt"),
       grade: formData.get("grade"),
       subject: formData.get("subject"),
       skillLevel: formData.get("skillLevel"),
     };
+
+    // Validate required fields
+    if (!data.originalPrompt) {
+      setError("Please enter an original prompt");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch("/api/tools/prompt-generator", {
@@ -45,242 +48,189 @@ export default function PromptPage() {
       });
 
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to generate prompt");
-      }
-
-      // Validate response against schema
-      const validatedResult = PromptGeneratorResponseSchema.safeParse(result);
-
-      if (!validatedResult.success) {
-        throw new Error("Invalid response format from server");
-      }
-
-      setPromptContent(validatedResult.data);
+      if (!response.ok) throw new Error(result.error);
+      setPromptResponse(result);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to generate educational prompt"
-      );
+      setError(err instanceof Error ? err.message : "Failed to generate prompts");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const renderComplexityBadge = (level: number) => (
-    <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800'>
-      Cognitive Load: {level}/5
-    </span>
-  );
-
-  const renderBloomsBadge = (level: string) => (
-    <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 ml-2'>
-      {level}
-    </span>
-  );
-
-  const renderPromptCard = (
-    prompt: PromptGeneratorResponse["refinedPrompts"][0],
-    index: number
-  ) => (
-    <div
-      key={index}
-      className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'
-    >
-      <div className='flex justify-between items-center mb-4'>
-        <h3 className='text-lg font-semibold text-gray-900'>
-          Prompt Version {index + 1}
-        </h3>
-        <div className='flex items-center'>
-          {renderComplexityBadge(
-            prompt.explanation.complexityLevel.cognitiveLoad
-          )}
-          {renderBloomsBadge(prompt.explanation.complexityLevel.bloomsLevel)}
-        </div>
-      </div>
-
-      <div className='prose prose-sm max-w-none text-gray-700'>
-        <ReactMarkdown>{prompt.promptText}</ReactMarkdown>
-      </div>
-
-      <div className='mt-4'>
-        <h4 className='font-medium text-gray-900 mb-2'>Explanation</h4>
-        <p className='text-gray-700'>{prompt.explanation.explanation}</p>
-      </div>
-
-      <div className='mt-4'>
-        <h4 className='font-medium text-gray-900 mb-2'>Focus Areas</h4>
-        <ul className='list-disc pl-5 space-y-1'>
-          {prompt.explanation.focusAreas.map((area, i) => (
-            <li key={i} className='text-gray-700'>
-              {area}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {prompt.ratings && (
-        <div className='mt-4 flex items-center text-sm text-gray-500'>
-          {prompt.ratings.averageRating !== undefined && (
-            <>
-              <span>
-                Average Rating: {prompt.ratings.averageRating.toFixed(1)}
-              </span>
-              <span className='mx-2'>•</span>
-            </>
-          )}
-          {prompt.ratings.totalRatings !== undefined && (
-            <span>Total Ratings: {prompt.ratings.totalRatings}</span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-
   return (
-    <div className='min-h-screen bg-gradient-to-b from-gray-50 to-white'>
-      <div className='container mx-auto px-4 py-12'>
-        <div className='text-center mb-12'>
-          <h1 className='text-4xl font-bold text-gray-900 mb-4'>
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto px-4 py-12">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
             Educational Prompt Generator
           </h1>
-          <p className='text-lg text-gray-600 max-w-2xl mx-auto'>
-            Generate differentiated educational prompts with various complexity
-            levels
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Generate differentiated educational prompts with various complexity levels
           </p>
         </div>
 
-        <div className='grid gap-8 lg:grid-cols-2 max-w-7xl mx-auto'>
+        <div className="grid gap-8 lg:grid-cols-2 max-w-7xl mx-auto">
           {/* Form Card */}
-          <Card className='p-8 shadow-lg hover:shadow-xl transition-shadow duration-300'>
-            <form onSubmit={handleSubmit} className='space-y-6'>
-              <div className='space-y-2'>
-                <Label htmlFor='topic' className='text-sm font-semibold'>
-                  Topic
-                </Label>
-                <Input
-                  id='topic'
-                  name='topic'
+          <Card className="p-8 shadow-lg">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="originalPrompt">Original Prompt</Label>
+                <Textarea
+                  id="originalPrompt"
+                  name="originalPrompt"
                   required
-                  placeholder='Enter your topic...'
-                  className='h-12 transition-colors focus:border-blue-400'
+                  placeholder="Enter your prompt..."
+                  className="min-h-[100px]"
                 />
               </div>
 
-              <div className='space-y-2'>
-                <Label htmlFor='grade' className='text-sm font-semibold'>
-                  Grade Level
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="grade">Grade Level (Optional)</Label>
                 <Input
-                  id='grade'
-                  name='grade'
-                  placeholder='e.g., 9th Grade'
-                  className='h-12 transition-colors focus:border-blue-400'
+                  id="grade"
+                  name="grade"
+                  placeholder="e.g., 9th Grade"
                 />
               </div>
 
-              <div className='space-y-2'>
-                <Label htmlFor='subject' className='text-sm font-semibold'>
-                  Subject
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="subject">Subject (Optional)</Label>
                 <Input
-                  id='subject'
-                  name='subject'
-                  placeholder='e.g., Biology'
-                  className='h-12 transition-colors focus:border-blue-400'
+                  id="subject"
+                  name="subject"
+                  placeholder="e.g., Mathematics"
                 />
               </div>
 
-              <div className='space-y-2'>
-                <Label htmlFor='skillLevel' className='text-sm font-semibold'>
-                  Skill Level
-                </Label>
-                <Select name='skillLevel'>
-                  <SelectTrigger className='h-12'>
-                    <SelectValue placeholder='Select skill level' />
+              <div className="space-y-2">
+                <Label htmlFor="skillLevel">Skill Level</Label>
+                <Select name="skillLevel" defaultValue="intermediate">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select skill level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='beginner'>Beginner</SelectItem>
-                    <SelectItem value='intermediate'>Intermediate</SelectItem>
-                    <SelectItem value='advanced'>Advanced</SelectItem>
+                    <SelectItem value="beginner">Beginner</SelectItem>
+                    <SelectItem value="intermediate">Intermediate</SelectItem>
+                    <SelectItem value="advanced">Advanced</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <Button
-                type='submit'
+                type="submit"
                 disabled={isLoading}
-                className='w-full h-12 text-base font-semibold transition-all duration-200 hover:scale-[1.02]'
+                className="w-full"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className='mr-2 h-5 w-5 animate-spin' />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Generating...
                   </>
                 ) : (
-                  "Generate Educational Prompts"
+                  "Generate Prompts"
                 )}
               </Button>
+
+              {error && (
+                <div className="p-3 text-sm text-red-500 bg-red-50 rounded-md">
+                  {error}
+                </div>
+              )}
             </form>
           </Card>
 
-          {/* Result Card */}
-          <Card className='p-8 shadow-lg'>
-            <h2 className='text-2xl font-bold text-gray-900 mb-6'>
-              Generated Educational Prompts
+          {/* Results Card */}
+          <Card className="p-8 shadow-lg">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Generated Prompts
             </h2>
 
-            {error && (
-              <div className='bg-red-50 text-red-600 p-4 rounded-lg mb-6 border border-red-100'>
-                <p className='font-medium'>{error}</p>
-              </div>
-            )}
-
             {isLoading ? (
-              <div className='animate-pulse space-y-6'>
-                <div className='space-y-3'>
-                  <div className='h-4 bg-gray-200 rounded w-1/4'></div>
-                  <div className='h-4 bg-gray-200 rounded w-full'></div>
-                  <div className='h-4 bg-gray-200 rounded w-5/6'></div>
-                </div>
-                <div className='space-y-3'>
-                  <div className='h-4 bg-gray-200 rounded w-1/4'></div>
-                  <div className='h-4 bg-gray-200 rounded w-full'></div>
-                </div>
+              <div className="animate-pulse space-y-4">
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-4 bg-gray-200 rounded w-full"></div>
+                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
               </div>
-            ) : promptContent ? (
-              <div className='space-y-8'>
-                <div className='bg-white p-6 rounded-lg border border-gray-100 shadow-sm'>
-                  <h3 className='text-lg font-semibold text-gray-900 mb-3'>
-                    Original Topic
+            ) : promptResponse?.data ? (
+              <div className="space-y-8">
+                <div className="bg-white p-6 rounded-lg border border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                    Original Prompt
                   </h3>
-                  <p className='text-gray-700'>
-                    {promptContent.originalPrompt}
+                  <p className="text-gray-700">
+                    {promptResponse.data.originalPrompt}
                   </p>
                 </div>
 
-                {promptContent.refinedPrompts.map((prompt, index) =>
-                  renderPromptCard(prompt, index)
-                )}
+                {promptResponse.data.refinedPrompts.map((prompt, index) => (
+                  <div
+                    key={index}
+                    className="bg-white p-6 rounded-lg border border-gray-100"
+                  >
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">
+                        Refined Version {index + 1}
+                      </h3>
+                      <div className="flex items-center space-x-2">
+                        <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                          Cognitive Load: {prompt.explanation.complexityLevel.cognitiveLoad}/5
+                        </span>
+                        <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                          {prompt.explanation.complexityLevel.bloomsLevel}
+                        </span>
+                      </div>
+                    </div>
 
-                {promptContent.metadata && (
-                  <div className='text-sm text-gray-500 mt-4'>
-                    Generated in {promptContent.metadata.processingTimeMs}ms •
-                    Version {promptContent.metadata.version}
+                    <div className="prose prose-sm max-w-none">
+                      <div className="mb-4">
+                        <p className="text-gray-800">{prompt.promptText}</p>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        <h4 className="font-medium text-gray-900">Explanation</h4>
+                        <p className="text-gray-700">{prompt.explanation.explanation}</p>
+                      </div>
+
+                      <div className="mt-4">
+                        <h4 className="font-medium text-gray-900">Focus Areas</h4>
+                        <ul className="list-disc pl-5 space-y-1">
+                          {prompt.explanation.focusAreas.map((area, i) => (
+                            <li key={i} className="text-gray-700">
+                              {area}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {prompt.ratings && (
+                        <div className="mt-4 flex items-center text-sm text-gray-500">
+                          {prompt.ratings.averageRating && (
+                            <span className="mr-4">
+                              Rating: {prompt.ratings.averageRating.toFixed(1)}
+                            </span>
+                          )}
+                          {prompt.ratings.totalRatings && (
+                            <span>
+                              Total Ratings: {prompt.ratings.totalRatings}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+
+                {promptResponse.data.metadata && (
+                  <div className="text-sm text-gray-500">
+                    Generated in {promptResponse.data.metadata.processingTimeMs}ms •
+                    Version {promptResponse.data.metadata.version}
                   </div>
                 )}
               </div>
             ) : (
-              <div className='text-center py-12 text-gray-500'>
-                <p className='text-lg'>
-                  Your generated educational prompts will appear here
-                </p>
-                <p className='text-sm mt-2'>
-                  Fill out the form and click generate to get started
-                </p>
-              </div>
+              <p className="text-center text-gray-500">
+                Your generated prompts will appear here
+              </p>
             )}
           </Card>
         </div>

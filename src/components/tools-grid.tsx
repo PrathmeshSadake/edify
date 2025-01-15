@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import Link from "next/link";
-import { Book, MessageSquare, ClipboardCheck, Brain } from "lucide-react";
+import { Book, MessageSquare, ClipboardCheck, Brain, FileText } from "lucide-react";
 
 const tools = [
   {
@@ -19,54 +19,68 @@ const tools = [
     href: "/tools/lesson-plan-generator",
   },
   {
-    title: "Prompt Generator",
+    title: "PEEL Generator",
     description:
-      "Generate engaging educational prompts for discussions and assignments",
-    icon: MessageSquare,
-    href: "/tools/prompt-generator",
-  },
-
-  // {
-  //   title: "Rubrik Generator",
-  //   description: "Create detailed assessment rubrics for any subject or task",
-  //   icon: ClipboardCheck,
-  //   href: "/tools/rubric-generator",
-  // },
-];
-
-const disabledTools = [
-  {
-    title: "Peel Generator",
-    description:
-      "Designed to enhance the clarity and coherence of your writing.",
+      "Generate well-structured paragraphs using the PEEL format",
     icon: Brain,
     href: "/tools/peel-generator",
   },
   {
-    title: "Quiz Generator",
-    description: "Coming soon",
+    title: "MCQ Generator",
+    description:
+      "Create multiple-choice questions with varying complexity levels",
     icon: MessageSquare,
-    href: "#",
+    href: "/tools/mcq-generator",
   },
   {
     title: "Report Generator",
-    description: "Coming soon",
-    icon: ClipboardCheck,
-    href: "#",
-  },
-  {
-    title: "MCQ Generator",
-    description: "Coming soon",
-    icon: Brain,
-    href: "#",
+    description:
+      "Generate detailed student progress reports",
+    icon: FileText,
+    href: "/tools/report-generator",
   },
   {
     title: "SOW Generator",
-    description: "Coming soon",
+    description:
+      "Create comprehensive schemes of work",
     icon: Book,
-    href: "#",
+    href: "/tools/sow-generator",
+  },
+  {
+    title: "Prompt Generator",
+    description:
+      "Generate engaging educational prompts for discussions",
+    icon: MessageSquare,
+    href: "/tools/prompt-generator",
+  },
+  {
+    title: "Quiz Generator",
+    description: "Create customized quizzes with various question types",
+    icon: MessageSquare,
+    href: "/tools/quiz-generator",
+  },
+  {
+    title: "Rubric Generator",
+    description: "Create detailed assessment rubrics for any task",
+    icon: ClipboardCheck,
+    href: "/tools/rubric-generator",
   },
 ];
+
+// const disabledTools = [
+//   {
+//     title: "Quiz Generator",
+//     description: "Coming soon",
+//     icon: MessageSquare,
+//     href: "#",
+//   },
+//   {
+//     title: "Rubric Generator",
+//     description: "Coming soon",
+//     icon: ClipboardCheck,
+//     href: "#",
+//   },
+// ];
 
 export default function ToolsGrid() {
   return (
@@ -96,7 +110,7 @@ export default function ToolsGrid() {
             </Card>
           </Link>
         ))}
-        {disabledTools.map((tool) => (
+        {/* {disabledTools.map((tool) => (
           <div key={tool.title}>
             <Card className='h-full opacity-50 cursor-not-allowed'>
               <CardHeader>
@@ -110,7 +124,7 @@ export default function ToolsGrid() {
               </CardContent>
             </Card>
           </div>
-        ))}
+        ))} */}
       </div>
     </div>
   );

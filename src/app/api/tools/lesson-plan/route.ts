@@ -1,21 +1,11 @@
 import { NextResponse } from "next/server";
-import {
-  LessonPlanSchema,
-  type LessonPlan,
-} from "@/schemas/lesson-plan-schema";
-import { openai } from "@ai-sdk/openai";
-import { generateObject } from "ai";
-
-interface LessonPlanRequest {
-  prompt: string;
-  grade?: string;
-  subject?: string;
-  duration?: string;
-}
+import { generateAIResponse } from "@/lib/api-client";
+import { LessonPlanSchema } from "@/schemas/lesson-plan-schema";
 
 export async function POST(req: Request) {
   try {
-    const body: LessonPlanRequest = await req.json();
+    const body = await req.json();
+    console.log("Received request body:", body);
 
     if (!body.prompt) {
       return NextResponse.json(
@@ -24,74 +14,68 @@ export async function POST(req: Request) {
       );
     }
 
-    // Create a structured prompt for OpenAI
-    const systemMessage = `You are a professional curriculum developer who creates detailed lesson plans. Your responses must be valid JSON objects that strictly follow the provided schema structure. Do not include any additional text or explanations outside the JSON object.`;
+    const systemMessage = `You are a professional curriculum developer who creates detailed lesson plans. You must respond with a valid JSON object that exactly matches the specified schema structure. Do not include any additional text or explanations outside the JSON object.`;
 
-    const userMessage = `Generate a detailed lesson plan following this exact schema structure:
-
+    const userMessage = `Create a lesson plan for:
     Topic: ${body.prompt}
-    Year Group: ${body.grade || "To be determined"}
-    Subject: ${body.subject || "To be determined"}
+    Year Group: ${body.grade || "Not specified"}
+    Subject: ${body.subject || "Not specified"}
     Duration: ${body.duration || "60 minutes"}
 
-    Include:
-    1. Clear learning objectives and success criteria
-    2. A structured lesson with timed introduction, main activities, and plenary
-    3. Assessment questions based on Bloom's taxonomy
-    4. Differentiation strategies for different learning needs
-    5. Cross-curricular connections
-    6. Required and optional resources
-    7. Extension activities and homework ideas
-    8. Teacher preparation notes and safety considerations
-
-    Respond with ONLY a valid JSON object matching the provided schema.`;
-
-    const { object } = await generateObject({
-      model: openai("gpt-4o-mini"),
-      schema: LessonPlanSchema,
-      prompt: systemMessage + userMessage,
-    });
-
-    // Parse and validate the response
-    let lessonPlanData = object;
-    try {
-      // const validatedResponse = LessonPlanSchema.parse(lessonPlanData);
-      // lessonPlanData = validatedResponse;
-    } catch (parseError) {
-      console.error("Failed to parse OpenAI response:", parseError);
-      return NextResponse.json(
-        {
-          error: "Failed to generate valid lesson plan format",
-          details:
-            parseError instanceof Error ? parseError.message : "Invalid format",
-          timestamp: new Date().toISOString(),
+    Return ONLY a JSON object with this exact structure:
+    {
+      "metadata": {
+        "topic": "string",
+        "yearGroup": "string",
+        "subject": "string",
+        "duration": "string"
+      },
+      "objectives": {
+        "learning": ["string"],
+        "success": ["string"]
+      },
+      "lessonStructure": {
+        "introduction": {
+          "duration": number,
+          "activities": [{"title": "string", "description": "string", "duration": number}]
         },
-        { status: 500 }
-      );
+        "mainActivities": [{"title": "string", "description": "string", "duration": number}],
+        "plenary": {
+          "duration": number,
+          "activities": [{"title": "string", "description": "string", "duration": number}]
+        }
+      },
+      "assessment": {
+        "formative": [{"type": "string", "description": "string"}]
+      },
+      "resources": ["string"]
     }
 
-    // Cache control headers for better performance
-    const headers = {
-      "Content-Type": "application/json",
-      "Cache-Control": "no-store, no-cache, must-revalidate",
-    };
+    The response must be valid JSON. Do not include any markdown formatting or additional text.`;
 
-    return NextResponse.json(lessonPlanData, { headers });
+    console.log("Generating response with prompt:", userMessage);
+
+    const response = await generateAIResponse({
+      prompt: systemMessage + "\n\n" + userMessage,
+      schema: LessonPlanSchema,
+    });
+
+    console.log("Generated response:", response);
+
+    return NextResponse.json(response);
+
   } catch (error) {
     console.error("Error generating lesson plan:", error);
-
+    let errorMessage = "Failed to generate lesson plan";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    
     return NextResponse.json(
-      {
-        error: "Failed to generate lesson plan",
-        details: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-      },
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
+      { error: errorMessage },
+      { status: 500 }
     );
   }
 }

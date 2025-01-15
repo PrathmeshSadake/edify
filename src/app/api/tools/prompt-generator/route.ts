@@ -1,77 +1,87 @@
-import { PromptGeneratorResponseSchema } from "@/schemas/prompt-schema";
-import { generateObject } from "ai";
 import { NextResponse } from "next/server";
-import { openai } from "@ai-sdk/openai";
-
-interface PromptRequest {
-  topic: string;
-  grade?: string;
-  subject?: string;
-  skillLevel?: string;
-}
+import { generateAIResponse } from "@/lib/api-client";
+import { PromptGeneratorResponseSchema } from "@/schemas/prompt-schema";
 
 export async function POST(req: Request) {
   try {
-    const startTime = Date.now();
-    const body: PromptRequest = await req.json();
+    const body = await req.json();
+    console.log("Received request body:", body);
 
-    if (!body.topic) {
+    if (!body.originalPrompt) {
       return NextResponse.json(
-        { error: "Missing required field: topic" },
+        { error: "Missing required field: originalPrompt" },
         { status: 400 }
       );
     }
 
-    const systemMessage = `You are an educational prompt generator. Your responses must be valid JSON objects that strictly follow the provided schema structure. Generate exactly three different versions of educational prompts based on the given topic and parameters.`;
+    const systemMessage = `You are an educational prompt engineering expert who creates engaging and effective prompts. You must respond with a valid JSON object that exactly matches the specified schema structure. Do not include any additional text or explanations outside the JSON object.`;
 
-    const userMessage = `Generate three educational prompts following this exact schema:
+    const userMessage = `Generate refined educational prompts for:
+    Original Prompt: ${body.originalPrompt}
+    Grade Level: ${body.grade || "Not specified"}
+    Subject: ${body.subject || "Not specified"}
+    Skill Level: ${body.skillLevel || "intermediate"}
 
-    Each prompt must include:
-    1. Clear prompt text
-    2. Pedagogical approach explanation
-    3. Specific focus areas
-    4. Complexity level (Bloom's Taxonomy and cognitive load 1-5)
-
-    Topic: ${body.topic}
-    ${body.grade ? `Grade Level: ${body.grade}` : ""}
-    ${body.subject ? `Subject: ${body.subject}` : ""}
-    ${body.skillLevel ? `Skill Level: ${body.skillLevel}` : ""}
-
-    Ensure each prompt has different:
-    - Bloom's Taxonomy levels
-    - Cognitive load ratings
-    - Pedagogical approaches
-    - Focus areas
-
-    Respond with ONLY a valid JSON object matching the provided schema.`;
-
-    const { object } = await generateObject({
-      model: openai("gpt-4o-mini"),
-      schema: PromptGeneratorResponseSchema,
-      prompt: systemMessage + userMessage,
-    });
-
-    return NextResponse.json(object, {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store, no-cache, must-revalidate",
-      },
-    });
-  } catch (error) {
-    console.error("Error generating educational prompt:", error);
-
-    return NextResponse.json(
-      {
-        error: "Failed to generate educational prompt",
-        details: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-      },
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-        },
+    Return ONLY a JSON object with this exact structure:
+    {
+      "data": {
+        "originalPrompt": "string",
+        "refinedPrompts": [
+          {
+            "promptText": "string",
+            "explanation": {
+              "explanation": "string",
+              "focusAreas": ["string"],
+              "complexityLevel": {
+                "cognitiveLoad": number (1-5),
+                "bloomsLevel": "string"
+              }
+            },
+            "ratings": {
+              "averageRating": number,
+              "totalRatings": number
+            }
+          }
+        ],
+        "metadata": {
+          "processingTimeMs": number,
+          "version": "string"
+        }
       }
+    }
+
+    For each refined prompt:
+    1. Make it clear and actionable
+    2. Include pedagogical approach
+    3. Consider cognitive load
+    4. Align with Bloom's Taxonomy
+    5. Provide clear focus areas
+
+    The response must be valid JSON. Do not include any markdown formatting or additional text.`;
+
+    console.log("Generating prompts with prompt:", userMessage);
+
+    const response = await generateAIResponse({
+      prompt: systemMessage + "\n\n" + userMessage,
+      schema: PromptGeneratorResponseSchema,
+    });
+
+    console.log("Generated prompts:", response);
+
+    return NextResponse.json(response);
+
+  } catch (error) {
+    console.error("Error generating prompts:", error);
+    let errorMessage = "Failed to generate prompts";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    
+    return NextResponse.json(
+      { error: errorMessage },
+      { status: 500 }
     );
   }
 }

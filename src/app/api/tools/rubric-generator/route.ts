@@ -1,77 +1,98 @@
 import { NextResponse } from "next/server";
-import {
-  RubricRequestSchema,
-  RubricResponseSchema,
-} from "@/schemas/rubric-schema";
-import { generateObject } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { generateAIResponse } from "@/lib/api-client";
+import { RubricResponseSchema } from "@/schemas/rubric-schema";
 
 export async function POST(req: Request) {
   try {
-    // Validate request body against schema
     const body = await req.json();
-    // const validatedRequest = RubricRequestSchema.parse(body);
+    console.log("Received request body:", body);
 
-    const systemMessage = `You are an educational assessment expert who creates detailed rubrics. Your responses must be valid JSON objects that strictly follow the provided schema structure. Generate comprehensive assessment criteria with specific feedback for each performance level.`;
+    if (!body.assignmentType || !body.keyStage || !body.criteria) {
+      return NextResponse.json(
+        { error: "Missing required fields: assignmentType, keyStage, and criteria" },
+        { status: 400 }
+      );
+    }
 
-    const userMessage = `Create an assessment rubric following this exact schema:
+    const systemMessage = `You are an educational assessment expert who creates detailed rubrics. You must respond with a valid JSON object that exactly matches the specified schema structure. Do not include any additional text or explanations outside the JSON object.`;
+
+    const userMessage = `Create an assessment rubric with the following details:
+
     Assignment Details:
     - Type: ${body.assignmentType}
-    ${
-      body.customAssignmentType
-        ? `- Custom Type: ${body.customAssignmentType}`
-        : ""
-    }
+    ${body.customAssignmentType ? `- Custom Type: ${body.customAssignmentType}` : ""}
     - Key Stage: ${body.keyStage}
     - Year Group: ${body.yearGroup}
     - Assessment Type: ${body.assessmentType}
     
     Required Criteria: ${body.criteria.join(", ")}
-    ${
-      body.additionalInstructions
-        ? `Additional Instructions: ${body.additionalInstructions}`
-        : ""
+    ${body.additionalInstructions ? `Additional Instructions: ${body.additionalInstructions}` : ""}
+
+    Return ONLY a JSON object with this exact structure:
+    {
+      "data": {
+        "id": "string",
+        "metadata": {
+          "assignmentType": "string",
+          "keyStage": "string",
+          "yearGroup": number,
+          "assessmentType": "string"
+        },
+        "rubric": {
+          "criteria": [
+            {
+              "name": "string",
+              "description": "string",
+              "feedbackByLevel": {
+                "level_name": {
+                  "text": "string",
+                  "suggestions": ["string"],
+                  "actionableSteps": ["string"]
+                }
+              }
+            }
+          ],
+          "instructions": {
+            "teacher": ["string"],
+            "peer": ["string"],
+            "self": ["string"]
+          }
+        },
+        "createdAt": "string",
+        "version": "string"
+      }
     }
 
     For each criterion:
     1. Provide clear name and description
-    2. Include detailed feedback for each performance level (advanced, proficient, developing, needs_improvement)
+    2. Include detailed feedback for each performance level
     3. Include specific suggestions and actionable steps for improvement
     
-    Also include:
-    1. Appropriate instructions based on assessment type (teacher/peer/self)
-    2. Relevant reflection prompts
-    
-    Respond with ONLY a valid JSON object matching the provided schema.`;
+    The response must be valid JSON. Do not include any markdown formatting or additional text.`;
 
-    const { object } = await generateObject({
-      model: openai("gpt-4o-mini"),
+    console.log("Generating rubric with prompt:", userMessage);
+
+    const response = await generateAIResponse({
+      prompt: systemMessage + "\n\n" + userMessage,
       schema: RubricResponseSchema,
-      prompt: systemMessage + userMessage,
     });
-    console.log(object);
 
-    return NextResponse.json(object, {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store, no-cache, must-revalidate",
-      },
-    });
+    console.log("Generated rubric:", response);
+
+    return NextResponse.json(response);
+
   } catch (error) {
     console.error("Error generating rubric:", error);
-
+    let errorMessage = "Failed to generate rubric";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+    
     return NextResponse.json(
-      {
-        error: "Failed to generate rubric",
-        details: error instanceof Error ? error.message : "Unknown error",
-        timestamp: new Date().toISOString(),
-      },
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
+      { error: errorMessage },
+      { status: 500 }
     );
   }
 }
